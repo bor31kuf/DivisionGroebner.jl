@@ -3,7 +3,7 @@ mutable struct PoyNomArray{W}
     Koeffizienten::Vector{FieldElem}
 end
 
-PolAlg, (x1,x2,x3,x4,x5,x6,x7) = PoyNomArrayial_ring(QQ,[:x1,:x2,:x3,:x4,:x5,:x6,:x7],internal_ordering=:lex)
+PolAlg, (x1,x2,x3,x4,x5,x6,x7) = poylynomial_ring(QQ,[:x1,:x2,:x3,:x4,:x5,:x6,:x7],internal_ordering=:lex)
 ord=lex(PolAlg)
 
 function PolNeuArray(f;ord::MonomialOrdering=default_ordering(parent(f)))

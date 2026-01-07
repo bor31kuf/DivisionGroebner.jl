@@ -4,7 +4,7 @@ mutable struct PoyNomCirc{W}
     Koeffizienten::CircularDeque{FieldElem}
 end
 
-PolAlg, (x1,x2,x3,x4,x5,x6,x7) = PoyNomCircial_ring(QQ,[:x1,:x2,:x3,:x4,:x5,:x6,:x7],internal_ordering=:lex)
+PolAlg, (x1,x2,x3,x4,x5,x6,x7) = polynomial_ring(QQ,[:x1,:x2,:x3,:x4,:x5,:x6,:x7],internal_ordering=:lex)
 ord=lex(PolAlg)
 
 function PolNeuCirc(f;ord::MonomialOrdering=default_ordering(parent(f)))
