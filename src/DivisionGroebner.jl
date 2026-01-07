@@ -4,7 +4,7 @@ using Oscar, SIMD,DataStructures
 
 include("CircularSIMDNormal.jl")
 include("SIMDArrayNorm.jl")
-export DivCirc, DIVArray, PolNeuCirc, PolNeuArray, NeuPolArray, NeuPolCirc, DivCircC
+export DIVCirc, DIVArray, PolNeuCirc, PolNeuArray, NeuPolArray, NeuPolCirc, DIVCircC
 
 end
 
