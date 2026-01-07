@@ -1,5 +1,5 @@
 using Test, DivisionGroebner
 
-out = plusTwo(3)
+out = plusTwo(4)
 
-@test out == 5
+@test out == 6
