@@ -1,8 +1,12 @@
 module DivisionGroebner
 
+using Oscar, SIMD,DataStructures
 
-export plusTwo
+include("CircularSIMDNormal.jl")
+include("SIMDArrayNorm.jl")
+export DivCirc, DIVArray, PolNeuCirc, PolNeuArray, NeuPolArray, NeuPolCirc
 
-plusTwo(x) = return x+2
+end
 
-end # module DivisionGroebner
+
+
