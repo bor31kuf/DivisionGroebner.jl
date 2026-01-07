@@ -1,12 +1,15 @@
-
+#PolyNome werden mit einer CircularDeque gespeichert, für schnelles löschen am Anfang der Liste.
 mutable struct PoyNomCirc{W}
     Monome::CircularDeque{Vec{W,Int64}}
     Koeffizienten::CircularDeque{FieldElem}
 end
 
-PolAlg, (x1,x2,x3,x4,x5,x6,x7) = polynomial_ring(QQ,[:x1,:x2,:x3,:x4,:x5,:x6,:x7],internal_ordering=:lex)
-ord=lex(PolAlg)
+#Um das Resultat zu berechnen benutzen wir
+struct geobucketpol{W}
+    Bucket::Vector{PoyNomCirc{W}}
+end
 
+#PolyNom wird erstellt
 function PolNeuCirc(f;ord::MonomialOrdering=default_ordering(parent(f)))
     A = collect(coefficients(f,ordering=ord))
     B = collect(exponents(f,ordering=ord))
@@ -52,7 +55,8 @@ function PolNeuCirc(f;ord::MonomialOrdering=default_ordering(parent(f)))
     end
 end  
 
-function Vgl(a::Vec{W,Int64},b::Vec{W,Int64}) where{W}
+#Funktion für den Vergleich von Polynomen 
+function cmp(a::Vec{W,Int64},b::Vec{W,Int64}) where{W}
     @inbounds for i in 1:W
         if a[i] != b[i]
             return a[i] > b[i]
@@ -61,6 +65,7 @@ function Vgl(a::Vec{W,Int64},b::Vec{W,Int64}) where{W}
     return 2
 end
 
+#Funktion um die neue PolynomStruktur in die alte umzuformen.
 function NeuPolCirc(f,PolAlg;ord=default_ordering(PolAlg))
     a=zero(PolAlg)
     k = length(f.Monome)
@@ -76,9 +81,8 @@ function NeuPolCirc(f,PolAlg;ord=default_ordering(PolAlg))
     return a
 end
 
-
+#Die eigentliche Division
 function DIVCirc(f::PoyNomCirc{W},G::Vector{PoyNomCirc{W}}) where W
-    #f2 = PoyNomCirc(deepcopy(f.Monome),deepcopy(f.Koeffizienten))
     L = length(f.Koeffizienten)
     if L==0
         return f
@@ -131,7 +135,7 @@ function DIVCirc(f::PoyNomCirc{W},G::Vector{PoyNomCirc{W}}) where W
     end
 end
 
-
+#Because we work with a CircularDeque we need to double the size some times
 function pushing(r::PoyNomCirc{W},LTf2M,LTf2K) where{W}
     if capacity(r.Koeffizienten) > length(r.Koeffizienten)
         push!(r.Monome,LTf2M)
@@ -151,10 +155,11 @@ function pushing(r::PoyNomCirc{W},LTf2M,LTf2K) where{W}
     return PoyNomCirc(r21,r22)
 end
 
+
+
 function Sub1(f::PoyNomCirc{W},g::PoyNomCirc{W},mf,mg,kf,kg) where{W}
     j=1
     k=1
-    
     lg = length(g.Koeffizienten)
     lf = length(f.Koeffizienten)
     A = CircularDeque{Vec{W,Int64}}(lg+lf)
@@ -163,7 +168,7 @@ function Sub1(f::PoyNomCirc{W},g::PoyNomCirc{W},mf,mg,kf,kg) where{W}
 
     while k <=lf && j <= lg
       
-        x = Vgl(f.Monome[k]+mf,g.Monome[j]+mg)
+        x = cmp(f.Monome[k]+mf,g.Monome[j]+mg)
         #potentiell aufpassen
         if x == 0
             push!(A,g.Monome[j]+mg)
@@ -200,15 +205,7 @@ function Sub1(f::PoyNomCirc{W},g::PoyNomCirc{W},mf,mg,kf,kg) where{W}
 end
 
 
-
-
-
-
-struct geobucketpol{W}
-    Bucket::Vector{PoyNomCirc{W}}
-end
-
-
+#Adds a Polynomial to a geobucket
 function addgeobucket(B::geobucketpol{W},f::PoyNomCirc,DIV1 = Vec{W,Int64}(ntuple(i-> 0,W)),DIV2 =QQFieldElem(1)) where{W}
     #nochmal hinschauen
     log = cld(64-leading_zeros(length(f.Koeffizienten)),2)
@@ -238,6 +235,8 @@ function addgeobucket(B::geobucketpol{W},f::PoyNomCirc,DIV1 = Vec{W,Int64}(ntupl
     return B
 end
 
+
+#adds two polynomials together, with the addition of a multiplikator for one polynomial
 function add2(f::PoyNomCirc{W},g::PoyNomCirc{W},DIV1,DIV2)where{W}
     lf = length(f.Koeffizienten)
     lg = length(g.Koeffizienten)
@@ -247,7 +246,7 @@ function add2(f::PoyNomCirc{W},g::PoyNomCirc{W},DIV1,DIV2)where{W}
     t = 0
     while k <=lf && j <= lg
         t+=1
-        x = Vgl(f.Monome[k],g.Monome[j]+DIV1)
+        x = cmp(f.Monome[k],g.Monome[j]+DIV1)
         #potentiell aufpassen
         if x == 0
             push!(f.Monome,g.Monome[j]+DIV1)
@@ -303,6 +302,7 @@ function add2(f::PoyNomCirc{W},g::PoyNomCirc{W},DIV1,DIV2)where{W}
     
 end
 
+#adds two polynomials together
 function add(f::PoyNomCirc{W},g::PoyNomCirc{W})where{W}
     lf = length(f.Koeffizienten)
     lg = length(g.Koeffizienten)
@@ -312,7 +312,7 @@ function add(f::PoyNomCirc{W},g::PoyNomCirc{W})where{W}
     t = 0
     while k <=lf && j <= lg
         t+=1
-        x = Vgl(f.Monome[k],g.Monome[j])
+        x = cmp(f.Monome[k],g.Monome[j])
  
         if x == 0
             push!(f.Monome,g.Monome[j])
@@ -367,6 +367,8 @@ function add(f::PoyNomCirc{W},g::PoyNomCirc{W})where{W}
     
 end
 
+
+#extracts the leading tearm of the geobucket
 function Leitterm(B::geobucketpol{W}) where{W}
     m= length(B.Bucket)
     j= 0
@@ -378,7 +380,7 @@ function Leitterm(B::geobucketpol{W}) where{W}
                 if j == 0
                     j=i
                 else
-                    wt = Vgl(first(B.Bucket[i].Monome),first(B.Bucket[j].Monome))
+                    wt = cmp(first(B.Bucket[i].Monome),first(B.Bucket[j].Monome))
                     if wt==1
                         j=i
                     elseif wt==2
@@ -408,3 +410,13 @@ function Leitterm(B::geobucketpol{W}) where{W}
     return popfirst!(B.Bucket[j].Monome),popfirst!(B.Bucket[j].Koeffizienten) 
 end
 
+#For the complete Division with
+function DIVArrayC(f,G,ord::MonomialOrdering=default_ordering(parent(f)))
+    f2 = PolNeuCirc(f,ord)
+    G2 = []
+    for i=1:length(G)
+        push!(G2,PolNeuCirc(G[i],ord))
+    end
+    A = DIVCirc(f2,G2)
+    return NeuPolCirc(A,parent(f),ord=ord)
+end
