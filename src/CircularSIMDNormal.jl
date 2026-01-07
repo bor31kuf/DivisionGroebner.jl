@@ -411,7 +411,7 @@ function Leitterm(B::geobucketpol{W}) where{W}
 end
 
 #For the complete Division with
-function DIVArrayC(f,G,ord::MonomialOrdering=default_ordering(parent(f)))
+function DIVCircC(f,G,ord::MonomialOrdering=default_ordering(parent(f)))
     f2 = PolNeuCirc(f,ord)
     G2 = []
     for i=1:length(G)
