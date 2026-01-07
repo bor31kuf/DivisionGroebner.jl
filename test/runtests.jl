@@ -1,5 +1,6 @@
 using Test, DivisionGroebner
 
-out = plusTwo(4)
+out = plusTwo(6)
 
-@test out == 6
+@test out == 8
+
