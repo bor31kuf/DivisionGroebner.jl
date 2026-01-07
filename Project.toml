@@ -1,0 +1,4 @@
+name = "DivisionGroebner"
+uuid = "6709474a-cefc-46cf-bc03-bce6cf9ba5f1"
+version = "0.1.0"
+authors = ["Joris <bor31kuf@rptu.de>"]
