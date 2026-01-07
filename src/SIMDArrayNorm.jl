@@ -1,4 +1,4 @@
-mutable struct PoyNomArray{W}
+mutable struct PolyNomArray{W}
     Monome::Vector{Vec{W,Int64}}
     Koeffizienten::Vector{FieldElem}
 end
@@ -11,7 +11,7 @@ function PolNeuArray(f;ord::MonomialOrdering=default_ordering(parent(f)))
     B = collect(exponents(f,ordering=ord))
     L = length(B)
     W= length(gens(parent(f)))+1
-    D = PoyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}()) 
+    D = PolyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}()) 
     if typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:lex}
         for i=1:length(A)
             push!(D.Monome,Vec{W,Int64}((0,B[i]...)))
@@ -62,7 +62,7 @@ function Vgl(a::Vec{W,Int64},b::Vec{W,Int64}) where{W}
     return 2
 end
 
-function NeuPolArray(f::PoyNomArray,PolAlg) 
+function NeuPolArray(f::PolyNomArray,PolAlg) 
     a=zero(PolAlg)
     k = length(f.Monome)
     for i=1:k
@@ -74,17 +74,17 @@ end
 
 
 
-function DIVArray(f::PoyNomArray{W},G::Vector{PoyNomArray{W}}) where W
-    fk = PoyNomArray(copy(f.Monome),copy(f.Koeffizienten))
+function DIVArray(f::PolyNomArray{W},G::Vector{PolyNomArray{W}}) where W
+    fk = PolyNomArray(copy(f.Monome),copy(f.Koeffizienten))
     L = length(f.Monome)
     if length(f.Monome)==0
         return f
     end
-    f2 = geobucketpol([PoyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}())])
+    f2 = geobucketpol([PolyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}())])
 
     f2 =addgeobucket(f2,fk)
     LTf2 = Leitterm(f2)
-    r = PoyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}())
+    r = PolyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}())
     D = length(G)
     while length(LTf2.Monome) != 0
         w = false
@@ -106,7 +106,7 @@ function DIVArray(f::PoyNomArray{W},G::Vector{PoyNomArray{W}}) where W
                 w = true
                 
                 if length(A)!=0
-                    g = PoyNomArray(A,B)
+                    g = PolyNomArray(A,B)
                     f2= addgeobucket(f2,g)
                 end
                 LTf2 = Leitterm(f2)
@@ -128,7 +128,7 @@ end
 
 
 
-function Sub1(f::PoyNomArray{W},g::PoyNomArray{W},mf,mg,kf,kg) where{W}
+function Sub1(f::PolyNomArray{W},g::PolyNomArray{W},mf,mg,kf,kg) where{W}
     j=1
     k=1
     
@@ -171,7 +171,7 @@ function Sub1(f::PoyNomArray{W},g::PoyNomArray{W},mf,mg,kf,kg) where{W}
     end
 
 
-    f2 = PoyNomArray(A,C)
+    f2 = PolyNomArray(A,C)
 
     return f2
 end
@@ -182,11 +182,11 @@ end
 
 
 struct geobucketpol{W}
-    Bucket::Vector{PoyNomArray{W}}
+    Bucket::Vector{PolyNomArray{W}}
 end
 
 
-function addgeobucket(B::geobucketpol{W},f::PoyNomArray) where{W}
+function addgeobucket(B::geobucketpol{W},f::PolyNomArray) where{W}
     #nochmal hinschauen
     i=max(1,ceil(Int,log(4,length(f.Monome))))
     m = length(B.Bucket)
@@ -206,14 +206,14 @@ function addgeobucket(B::geobucketpol{W},f::PoyNomArray) where{W}
         end
     end
     for t=m:max(m,i)-1
-        push!(B.Bucket, PoyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}()))
+        push!(B.Bucket, PolyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}()))
     end
     B.Bucket[i] = f
     return B
 end
 
 
-function add(f::PoyNomArray{W},g::PoyNomArray{W})where{W}
+function add(f::PolyNomArray{W},g::PolyNomArray{W})where{W}
     lf = length(f.Monome)
     lg = length(g.Monome)
     k= 1
@@ -254,7 +254,7 @@ function add(f::PoyNomArray{W},g::PoyNomArray{W})where{W}
         push!(C,f.Koeffizienten[k])
         k+=1
     end
-    h = PoyNomArray(A,C)
+    h = PolyNomArray(A,C)
     return h
 end
 
@@ -294,11 +294,19 @@ function Leitterm(B::geobucketpol{W}) where{W}
         end
     end
     if j== 0
-        return PoyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}()) 
+        return PolyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}()) 
     end
     #return
-    h = PoyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}())
+    h = PolyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}())
     push!(h.Monome,popfirst!(B.Bucket[j].Monome))
     push!(h.Koeffizienten,popfirst!(B.Bucket[j].Koeffizienten))
     return h
+end
+
+function DIVCircA(f,G,ord::MonomialOrdering=default_ordering(parent(f)))
+    f2 = PolNeuCirc(f,ord=ord)
+    W = length(gens(parent(f)))+1
+    G2 = [PolNeuArray(G[i],ord=ord) for i=1:length(G)]
+    A = DIVCirc(f2,G2)
+    return NeuPolArray(A,parent(f),ord=ord)
 end
