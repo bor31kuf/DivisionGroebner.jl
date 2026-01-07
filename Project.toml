@@ -2,3 +2,13 @@ name = "DivisionGroebner"
 uuid = "6709474a-cefc-46cf-bc03-bce6cf9ba5f1"
 version = "0.1.0"
 authors = ["Joris <bor31kuf@rptu.de>"]
+
+[deps]
+DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
+Oscar = "f1435218-dba5-11e9-1e4d-f1a5fab5fc13"
+SIMD = "fdea26ae-647d-5447-a871-4b548cad5224"
+
+[compat]
+DataStructures = "0.19.3"
+Oscar = "1.6.0"
+SIMD = "3.7.2"
