@@ -302,10 +302,10 @@ function Leitterm(B::geobucketpol{W}) where{W}
     return h
 end
 
-function DIVCircA(f,G,ord::MonomialOrdering=default_ordering(parent(f)))
-    f2 = PolNeuCirc(f,ord=ord)
+function DIVArrayC(f,G,ord::MonomialOrdering=default_ordering(parent(f)))
+    f2 = PolNeuArray(f,ord=ord)
     W = length(gens(parent(f)))+1
     G2 = [PolNeuArray(G[i],ord=ord) for i=1:length(G)]
-    A = DIVCirc(f2,G2)
+    A = DIVArray(f2,G2)
     return NeuPolArray(A,parent(f),ord=ord)
 end
