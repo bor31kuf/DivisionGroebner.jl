@@ -1,11 +1,10 @@
+#New Structure for Polynomials, but with 
 mutable struct PolyNomArray{W}
     Monome::Vector{Vec{W,Int64}}
     Koeffizienten::Vector{FieldElem}
 end
 
-PolAlg, (x1,x2,x3,x4,x5,x6,x7) = polynomial_ring(QQ,[:x1,:x2,:x3,:x4,:x5,:x6,:x7],internal_ordering=:lex)
-ord=lex(PolAlg)
-
+#
 function PolNeuArray(f;ord::MonomialOrdering=default_ordering(parent(f)))
     A = collect(coefficients(f,ordering=ord))
     B = collect(exponents(f,ordering=ord))
