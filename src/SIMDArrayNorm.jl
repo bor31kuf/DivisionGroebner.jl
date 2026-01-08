@@ -61,11 +61,17 @@ function Vgl(a::Vec{W,Int64},b::Vec{W,Int64}) where{W}
     return 2
 end
 
-function NeuPolArray(f::PolyNomArray,PolAlg) 
+function NeuPolArray(f,PolAlg;ord=default_ordering(PolAlg))
     a=zero(PolAlg)
     k = length(f.Monome)
-    for i=1:k
-        a += monomial(PolAlg,collect(Tuple(f.Monome[i]))[2:end])*f.Koeffizienten[i]
+    if typeof(ord.o) == Oscar.Orderings.WSymbOrdering{:wdegrevlex} ||  typeof(ord.o) == Oscar.Orderings.SymbOrdering{:degrevlex}
+        for i=1:k
+            a += monomial(PolAlg,reverse(collect(Tuple(f.Monome[i]))[2:end]))*f.Koeffizienten[i]
+        end
+    else 
+        for i=1:k
+            a += monomial(PolAlg,collect(Tuple(f.Monome[i]))[2:end])*f.Koeffizienten[i]
+        end
     end
     return a
 end
