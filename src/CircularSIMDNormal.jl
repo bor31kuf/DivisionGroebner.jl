@@ -247,6 +247,62 @@ function DIVCirc(f::PolyNomCirc{W},G::Vector{PolyNomCirc{W}}) where W
 end
 
 """
+ignoriert ein Element aus G
+"""
+function DIVCirc(f::PolyNomCirc{W},G::Vector{PolyNomCirc{W}},l) where W
+    L = length(f.Koeffizienten)
+    if L==0
+        return f
+    end
+    f2 = geobucketpol1([PolyNomCirc(CircularDeque{Vec{W,Int64}}(8),CircularDeque{FieldElem}(8))])
+    f2 =addgeobucket(f2,f)
+    LTf2M= first(f.Monome)
+    LTf2K =first(f.Koeffizienten)
+    r = PolyNomCirc(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L))
+    D = length(G)
+    while true
+        w = false
+        for i=1:D
+            if sum(LTf2M>=first(G[i].Monome))==W && l!=i
+                
+                DIV1 =LTf2M-first(G[i].Monome)
+                DIV2 = -LTf2K/first(G[i].Koeffizienten)
+                L2 = length(G[i].Koeffizienten)
+                w = true
+                if L2!=1
+                    f2= addgeobucket(f2,G[i],DIV1,DIV2)
+                end
+            
+                LTf2M,LTf2K = Leitterm(f2)
+                if LTf2K == 0
+                    return r
+                end
+                break
+        
+            end
+        end
+        if w == false
+            r= pushing(r,LTf2M,LTf2K)
+            LTf2M,LTf2K = Leitterm(f2)
+            if LTf2K == 0
+                if length(r.Koeffizienten) == 0
+                    return r
+                end
+                if first(r.Koeffizienten) == 1
+                    return r
+                else 
+                    tt = first(r.Koeffizienten)
+                    for i =1:length(r.Koeffizienten)
+                        r.Koeffizienten.buffer[i] /= tt
+                    end
+                    return r
+                end
+            end
+        end
+    end
+end
+
+"""
 Weil mit einer CircularDeque gearbeitet wird muss beim Einfügen die Größe potentiell verändert werden.
 """
 function pushing(r::PolyNomCirc{W},LTf2M,LTf2K) where{W}

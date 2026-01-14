@@ -147,9 +147,7 @@ function reduce_groebner(G)
     for a=1:L
         w = true
         while i <= length(G)
-            G2 = deepcopy(G)
-            deleteat!(G2,i)
-            a = DIVCirc(G[i],G2)
+            a = DIVCirc(G[i],G,i)
             if length(a.Monome)==0
                 deleteat!(G,i)
                 w = false
