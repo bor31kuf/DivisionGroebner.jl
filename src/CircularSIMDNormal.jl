@@ -49,9 +49,6 @@ function addgeobucket(B::geobucketpol1{W},f::PolyNomCirc,DIV1 = Vec{W,Int64}(ntu
     return B
 end
 
-"""
-Extrahiert den Leitterm von dem Geobucket
-"""
 function Leitterm(B::geobucketpol1{W}) where{W}
     m= length(B.Bucket)
     j= 0

@@ -1,10 +1,107 @@
-#New Structure for Polynomials, but with 
+"""
+PolyNome werden mit einem Arrray gespeichert.
+Innerhalb der Liste wird ein SIMD Vector bebutzt zur parallelen Operation auf dem Vector.
+
+Um nicht immer wieder das potentielle Gewicht des PolyNoms zu berchnen wird es mit gespeichert. 
+""" 
 mutable struct PolyNomArray{W}
     Monome::Vector{Vec{W,Int64}}
     Koeffizienten::Vector{FieldElem}
 end
 
-#
+
+
+"""
+Um das Resultat zu berchnen benutzen wir einen geobucket,für eine schnelle Polynomaddition.
+"""
+struct geobucketpol{W}
+    Bucket::Vector{PolyNomArray{W}}
+end
+
+
+"""
+Die Addition bei einem Geobucket
+"""
+function addgeobucket(B::geobucketpol{W},f::PolyNomArray) where{W}
+    #nochmal hinschauen
+    i=max(1,ceil(Int,log(4,length(f.Monome))))
+    m = length(B.Bucket)
+    if i <= m
+        f =add(f,B.Bucket[i])
+        while i <=m && length(f.Monome) > 4^i
+            if i!=m
+                if isempty(B.Bucket[i+1].Koeffizienten) == false
+                    f=add(f,B.Bucket[i+1])
+                end
+            else
+                push!(B.Bucket,f)
+            end
+            empty!(B.Bucket[i].Monome)
+            empty!(B.Bucket[i].Koeffizienten)
+            i+=1
+        end
+    end
+    for t=m:max(m,i)-1
+        push!(B.Bucket, PolyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}()))
+    end
+    B.Bucket[i] = f
+    return B
+end
+
+
+"""
+Extrahiert den Leitterm von dem Geobucket
+"""
+function Leitterm(B::geobucketpol{W}) where{W}
+    m= length(B.Bucket)
+    j= 0
+    while true
+        j= 0
+        w = true
+        for i=1:m
+            if first(isempty(B.Bucket[i].Monome)) == false
+                if j == 0
+                    j=i
+                else
+                    wt = cmp(first(B.Bucket[i].Monome),first(B.Bucket[j].Monome))
+                    if wt==1
+                        j=i
+                    elseif wt==2
+                        if first(B.Bucket[i].Koeffizienten) + first(B.Bucket[j].Koeffizienten)!=0
+                            B.Bucket[j].Koeffizienten[1]+=B.Bucket[i].Koeffizienten[1]
+                            popfirst!(B.Bucket[i].Koeffizienten)
+                            popfirst!(B.Bucket[i].Monome)
+                        else
+                            popfirst!(B.Bucket[i].Koeffizienten)
+                            popfirst!(B.Bucket[i].Monome)
+                            popfirst!(B.Bucket[j].Koeffizienten)
+                            popfirst!(B.Bucket[j].Monome)
+                            w = false
+                            break
+                        end
+                    end
+                end
+            end
+        end
+        if j==0 || w== true
+            break
+        end
+    end
+    if j== 0
+        return PolyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}()) 
+    end
+    #return
+    h = PolyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}())
+    push!(h.Monome,popfirst!(B.Bucket[j].Monome))
+    push!(h.Koeffizienten,popfirst!(B.Bucket[j].Koeffizienten))
+    return h
+end
+
+"""
+Eine Umwandlung von einem Oscar Polynom in den neuen Polynomtypen.
+
+Unterstützt werden: lex,wdeglex,deglex,degrevlex,wdegrevlex
+"""
 function PolNeuArray(f;ord::MonomialOrdering=default_ordering(parent(f)))
     A = collect(coefficients(f,ordering=ord))
     B = collect(exponents(f,ordering=ord))
@@ -50,7 +147,11 @@ function PolNeuArray(f;ord::MonomialOrdering=default_ordering(parent(f)))
     end
 end  
 
-function Vgl(a::Vec{W,Int64},b::Vec{W,Int64}) where{W}
+
+"""
+Funktion für den Vergleich von Monomen. 
+"""
+function cmp(a::Vec{W,Int64},b::Vec{W,Int64}) where{W}
     for i in 1:W
         if a[i] < b[i]
             return 0
@@ -61,6 +162,9 @@ function Vgl(a::Vec{W,Int64},b::Vec{W,Int64}) where{W}
     return 2
 end
 
+"""
+Funktion zum umwandeln vom neuen Polynomtyp in den Oscar Polynomtypen.
+"""
 function NeuPolArray(f,PolAlg;ord=default_ordering(PolAlg))
     a=zero(PolAlg)
     k = length(f.Monome)
@@ -79,6 +183,9 @@ end
 
 
 
+"""
+Der eigentliche Divisionsalgortihmus
+"""
 function DIVArray(f::PolyNomArray{W},G::Vector{PolyNomArray{W}}) where W
     fk = PolyNomArray(copy(f.Monome),copy(f.Koeffizienten))
     L = length(f.Monome)
@@ -133,6 +240,10 @@ end
 
 
 
+"""
+Subtraktion mit Zusatzinfos
+
+"""
 function Sub1(f::PolyNomArray{W},g::PolyNomArray{W},mf,mg,kf,kg) where{W}
     j=1
     k=1
@@ -145,7 +256,7 @@ function Sub1(f::PolyNomArray{W},g::PolyNomArray{W},mf,mg,kf,kg) where{W}
 
     while k <=lf && j <= lg
       
-        x = Vgl(f.Monome[k]+mf,g.Monome[j]+mg)
+        x = cmp(f.Monome[k]+mf,g.Monome[j]+mg)
         #potentiell aufpassen
         if x == 0
             push!(A,g.Monome[j]+mg)
@@ -181,43 +292,9 @@ function Sub1(f::PolyNomArray{W},g::PolyNomArray{W},mf,mg,kf,kg) where{W}
     return f2
 end
 
-
-
-
-
-
-struct geobucketpol{W}
-    Bucket::Vector{PolyNomArray{W}}
-end
-
-
-function addgeobucket(B::geobucketpol{W},f::PolyNomArray) where{W}
-    #nochmal hinschauen
-    i=max(1,ceil(Int,log(4,length(f.Monome))))
-    m = length(B.Bucket)
-    if i <= m
-        f =add(f,B.Bucket[i])
-        while i <=m && length(f.Monome) > 4^i
-            if i!=m
-                if isempty(B.Bucket[i+1].Koeffizienten) == false
-                    f=add(f,B.Bucket[i+1])
-                end
-            else
-                push!(B.Bucket,f)
-            end
-            empty!(B.Bucket[i].Monome)
-            empty!(B.Bucket[i].Koeffizienten)
-            i+=1
-        end
-    end
-    for t=m:max(m,i)-1
-        push!(B.Bucket, PolyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}()))
-    end
-    B.Bucket[i] = f
-    return B
-end
-
-
+"""
+Addition zweier Monome mit Zusatzinfos
+"""
 function add(f::PolyNomArray{W},g::PolyNomArray{W})where{W}
     lf = length(f.Monome)
     lg = length(g.Monome)
@@ -228,7 +305,7 @@ function add(f::PolyNomArray{W},g::PolyNomArray{W})where{W}
     C = Vector{FieldElem}()
     while k <=lf && j <= lg
         
-        x = Vgl(f.Monome[k],g.Monome[j])
+        x = cmp(f.Monome[k],g.Monome[j])
 
         #potentiell aufpassen
         if x == 0
@@ -263,51 +340,9 @@ function add(f::PolyNomArray{W},g::PolyNomArray{W})where{W}
     return h
 end
 
-function Leitterm(B::geobucketpol{W}) where{W}
-    m= length(B.Bucket)
-    j= 0
-    while true
-        j= 0
-        w = true
-        for i=1:m
-            if first(isempty(B.Bucket[i].Monome)) == false
-                if j == 0
-                    j=i
-                else
-                    wt = Vgl(first(B.Bucket[i].Monome),first(B.Bucket[j].Monome))
-                    if wt==1
-                        j=i
-                    elseif wt==2
-                        if first(B.Bucket[i].Koeffizienten) + first(B.Bucket[j].Koeffizienten)!=0
-                            B.Bucket[j].Koeffizienten[1]+=B.Bucket[i].Koeffizienten[1]
-                            popfirst!(B.Bucket[i].Koeffizienten)
-                            popfirst!(B.Bucket[i].Monome)
-                        else
-                            popfirst!(B.Bucket[i].Koeffizienten)
-                            popfirst!(B.Bucket[i].Monome)
-                            popfirst!(B.Bucket[j].Koeffizienten)
-                            popfirst!(B.Bucket[j].Monome)
-                            w = false
-                            break
-                        end
-                    end
-                end
-            end
-        end
-        if j==0 || w== true
-            break
-        end
-    end
-    if j== 0
-        return PolyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}()) 
-    end
-    #return
-    h = PolyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}())
-    push!(h.Monome,popfirst!(B.Bucket[j].Monome))
-    push!(h.Koeffizienten,popfirst!(B.Bucket[j].Koeffizienten))
-    return h
-end
-
+"""
+Die komplette Divisio
+"""
 function DIVArrayC(f,G,ord::MonomialOrdering=default_ordering(parent(f)))
     f2 = PolNeuArray(f,ord=ord)
     W = length(gens(parent(f)))+1

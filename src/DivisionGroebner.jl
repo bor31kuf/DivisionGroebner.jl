@@ -8,7 +8,7 @@ include("GroebnerSIMDNorm.jl")
 include("GroebnerArrayNorm.jl")
 
 
-export DIVCirc, DIVArray, PolNeuCirc, PolNeuArray, NeuPolArray, NeuPolCirc, DIVCircC, DIVArrayC, GroebnerCirc, GroebnerArray
+export DIVCirc, DIVArray, PolNeuCirc, PolNeuArray, NeuPolArray, NeuPolCirc, DIVCircC, DIVArrayC, GroebnerCirc, GroebnerArray, Gewicht
 
 end
 
