@@ -27,10 +27,7 @@ function Buchberger2(G::Vector{PolyNomCirc{W}},c::Vec{W,Int64}) where{W}
             a = Queue[k][1]
             b = Queue[k][2]
             Sij = SPoly(G[a],G[b],c)
-            println(k)
             S = DIVCirc(Sij,G)
-            println(length(Bits))
-            println(length(G))
             if length(S.Monome)!=0
                 push!(G,S)
                 Queue, Bits = QUEUE(G,Queue,Bits,k)
@@ -113,7 +110,7 @@ function pairs(n::Int)::Vector{Tuple{Int,Int}}
 end
 
 
-function Groebner(G,c)
+function GroebnerTCirc(G,c)
     X=  Buchberger2(G,c)
 
     X = reduce_groebner(X)
@@ -175,7 +172,7 @@ function GroebnerCirc(G;ord=default_ordering(parent(G[1])))
         push!(T,PolNeuCirc(G[i],ord=ord))
     end
     c = Gewicht(parent(G[1]),ord)
-    T=Groebner(T,c)
+    T=GroebnerTCirc(T,c)
     
     L =MPolyRingElem[]
     for i=1:length(T)
