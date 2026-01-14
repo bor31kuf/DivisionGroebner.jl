@@ -45,7 +45,7 @@ end
 """
 Zeigt auf welche Polynom paare überhaupt in Betracht kommen. 
 """
-function QUEUE(G::Vector{CircularSIMDNormal.PolyNomCirc{W}},Pairs,Bits,k) where{W}
+function QUEUE(G::Vector{PolyNomCirc{W}},Pairs,Bits,k) where{W}
     h = G[length(G)]
     c = length(Bits)
     for i=k+1:length(Bits)
