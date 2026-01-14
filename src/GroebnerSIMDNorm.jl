@@ -32,7 +32,6 @@ function Buchberger2(G::Vector{PolyNomCirc{W}},c::Vec{W,Int64}) where{W}
                 push!(G,S)
                 Queue, Bits = QUEUE(G,Queue,Bits,k)
             end
-    
         end
         k+=1
     end
@@ -112,7 +111,6 @@ end
 
 function GroebnerTCirc(G,c)
     X=  Buchberger2(G,c)
-
     X = reduce_groebner(X)
     return X
   
