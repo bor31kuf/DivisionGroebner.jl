@@ -165,6 +165,7 @@ function cmp(a::Vec{W,Int64},b::Vec{W,Int64}) where{W}
     return 2
 end
 
+
 """
 Funktion zum umwandeln vom neuen Polynomtyp in den Oscar Polynomtypen.
 """
@@ -322,6 +323,9 @@ end
 
 """
 Addition zweier Monome mit Zusatzinfos
+
+so ist das eigentliche Addition f+g*(DIV1,DIV2)
+DIV1 ist das Monom, DIV2 der Koeffizient
 """
 function add(f::PolyNomCirc{W},g::PolyNomCirc{W},DIV1,DIV2)where{W}
     lf = length(f.Koeffizienten)
