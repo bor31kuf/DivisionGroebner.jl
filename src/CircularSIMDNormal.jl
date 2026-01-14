@@ -95,14 +95,14 @@ Eine Umwandlung von einem Oscar Polynom in den neuen Polynomtypen.
 
 Unterstützt werden: lex,wdeglex,deglex,degrevlex,wdegrevlex
 """
-
 function PolNeuCirc(f;ord::MonomialOrdering=default_ordering(parent(f)))
     A = collect(coefficients(f,ordering=ord))
     B = collect(exponents(f,ordering=ord))
     L = length(B)
     W= length(gens(parent(f)))+1
-    D = PolyNomCirc(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L)) 
+    
     if typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:lex}
+        D = PolyNomCirc(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L)) 
         for i=1:length(A)
             push!(D.Monome,Vec{W,Int64}((0,B[i]...)))
             push!(D.Koeffizienten,A[i])
@@ -110,6 +110,7 @@ function PolNeuCirc(f;ord::MonomialOrdering=default_ordering(parent(f)))
         return D
     end
     if typeof(ord.o) ==Oscar.Orderings.WSymbOrdering{:wdeglex}
+        D = PolyNomCirc(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L)) 
         c = ord.o.weights
         for i=1:length(A)
             push!(D.Monome,Vec{W,Int64}((sum(c[j]*B[i][j] for j=1:W-1),B[i]...)))
@@ -117,27 +118,39 @@ function PolNeuCirc(f;ord::MonomialOrdering=default_ordering(parent(f)))
         end
         return D
     elseif typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:deglex}
+        D = PolyNomCirc(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L)) 
         for i=1:length(A)
             push!(D.Monome,Vec{W,Int64}((sum(B[i][j] for j=1:W-1),B[i]...)))
             push!(D.Koeffizienten,A[i])
         end
         return D
     elseif typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:degrevlex}
+        D = PolyNomCirc(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L)) 
         for i=1:length(A)
-            push!(D.Monome,Vec{W,Int64}((sum(B[i][j] for j=1:W-1),reverse(B[i])...)))
+            push!(D.Monome,Vec{W,Int64}((sum(B[i][j] for j=1:W-1),reverse(B[i]...))))
             push!(D.Koeffizienten,A[i])
         end
         return D
     elseif typeof(ord.o) ==Oscar.Orderings.WSymbOrdering{:wdegrevlex}
+        D = PolyNomCirc(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L)) 
         c = ord.o.weights
         for i=1:length(A)
-            push!(D.Monome,Vec{W,Int64}((sum(c[j]*B[i][j] for j=1:W-1),reverse(B[i])...)))
+            push!(D.Monome,Vec{W,Int64}((sum(c[j]*B[i][j] for j=1:W-1),reverse(B[i]...))))
             push!(D.Koeffizienten,A[i])
         end
         return D
-   else
+    elseif typeof(ord.o) == Oscar.Orderings.MatrixOrdering
+        W = length(gens(parent(f)))*2
+        D = PolyNomCirc(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L)) 
+        c = ord.o.matrix
+        for i=1:length(A)
+            push!(D.Monome,Vec{W,Int64}((c*B[i]...,B[i]...)))
+            push!(D.Koeffizienten,A[i])
+        end
+        return D
+    else
         throw(ArgumentError("Ordnung nicht unterstützt"))
-   end
+    end
 end  
 
 """
@@ -162,9 +175,14 @@ function NeuPolCirc(f,PolAlg;ord=default_ordering(PolAlg))
         for i=1:k
             a += monomial(PolAlg,reverse(collect(Tuple(f.Monome[i]))[2:end]))*f.Koeffizienten[i]
         end
-    else 
+    elseif typeof(ord.o) == Oscar.Orderings.WSymbOrdering{:wdeglex} || typeof(ord.o) == Oscar.Orderings.SymbOrdering{:lex} 
         for i=1:k
             a += monomial(PolAlg,collect(Tuple(f.Monome[i]))[2:end])*f.Koeffizienten[i]
+        end
+    elseif typeof(ord.o) == Oscar.Orderings.MatrixOrdering
+        W = length(gens(PolAlg)) 
+        for i=1:k
+            a+=monomial(PolAlg,collect(Tuple(f.Monome[i]))[W+1:end])*f.Koeffizienten[i]
         end
     end
     return a
