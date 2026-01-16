@@ -114,36 +114,43 @@ function PolNeuArray(f;ord::MonomialOrdering=default_ordering(parent(f)))
             push!(D.Koeffizienten,A[i])
         end
         return D
-    end
-    if typeof(ord.o) ==Oscar.Orderings.WSymbOrdering{:wdeglex}
+    elseif typeof(ord.o) ==Oscar.Orderings.WSymbOrdering{:wdeglex}
         c = ord.o.weights
         for i=1:length(A)
             push!(D.Monome,Vec{W,Int64}((sum(c[j]*B[i][j] for j=1:W-1),B[i]...)))
             push!(D.Koeffizienten,A[i])
         end
         return D
-    end
-    if typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:deglex}
+    elseif typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:deglex}
         for i=1:length(A)
             push!(D.Monome,Vec{W,Int64}((sum(B[i][j] for j=1:W-1),B[i]...)))
             push!(D.Koeffizienten,A[i])
         end
         return D
-    end
-    if typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:degrevlex}
+    elseif typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:degrevlex}
         for i=1:length(A)
             push!(D.Monome,Vec{W,Int64}((sum(B[i][j] for j=1:W-1),reverse(B[i])...)))
             push!(D.Koeffizienten,A[i])
         end
         return D
-    end
-    if typeof(ord.o) ==Oscar.Orderings.WSymbOrdering{:wdegrevlex}
+    elseif typeof(ord.o) ==Oscar.Orderings.WSymbOrdering{:wdegrevlex}
         c = ord.o.weights
         for i=1:length(A)
             push!(D.Monome,Vec{W,Int64}((sum(c[j]*B[i][j] for j=1:W-1),reverse(B[i])...)))
             push!(D.Koeffizienten,A[i])
         end
         return D
+    elseif typeof(ord.o) == Oscar.Orderings.MatrixOrdering
+        W = length(gens(parent(f)))*2        
+        c = ord.o.matrix
+        D = PolyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}())
+        for i=1:length(A)
+            push!(D.Monome,Vec{W,Int64}((c*B[i]...,B[i]...)))
+            push!(D.Koeffizienten,A[i])
+        end
+        return D
+    else
+        throw(ArgumentError("Ordnung nicht unterstützt"))
     end
 end  
 
@@ -168,16 +175,23 @@ Funktion zum umwandeln vom neuen Polynomtyp in den Oscar Polynomtypen.
 function NeuPolArray(f,PolAlg;ord=default_ordering(PolAlg))
     a=zero(PolAlg)
     k = length(f.Monome)
+    Builder = MPolyBuildCtx(PolAlg)
     if typeof(ord.o) == Oscar.Orderings.WSymbOrdering{:wdegrevlex} ||  typeof(ord.o) == Oscar.Orderings.SymbOrdering{:degrevlex}
+        
         for i=1:k
-            a += monomial(PolAlg,reverse(collect(Tuple(f.Monome[i]))[2:end]))*f.Koeffizienten[i]
+            push_term!(Builder,f.Koeffizienten[i],reverse(collect(Tuple(f.Monome[i]))[2:end]))
         end
-    else 
+    elseif typeof(ord.o) == Oscar.Orderings.SymbOrdering{:deglex} || typeof(ord.o) == Oscar.Orderings.SymbOrdering{:lex} 
+         for i=1:k
+            push_term!(Builder,f.Koeffizienten[i],collect(Tuple(f.Monome[i]))[2:end])
+        end
+    elseif typeof(ord.o) == Oscar.Orderings.MatrixOrdering
+        W = length(gens(PolAlg)) 
         for i=1:k
-            a += monomial(PolAlg,collect(Tuple(f.Monome[i]))[2:end])*f.Koeffizienten[i]
+            push_term!(Builder,f.Koeffizienten[i],collect(Tuple(f.Monome[i]))[W+1:end])
         end
     end
-    return a
+    return finish(Builder)
 end
 
 

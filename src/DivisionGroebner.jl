@@ -11,7 +11,7 @@ include("AlteStruktur.jl")
 include("CircularNormal.jl")
 
 
-export DIVCirc, DIVArray, PolNeuCirc, PolNeuArray, NeuPolArray, NeuPolCirc, DIVCircC, DIVArrayC, GroebnerCirc, Gewicht, DIVArrayOhne, DivRestFam, PolNeuCirc2, NeuPolCirc2,DIVCirc2,DIVCircC2
+export DIVCirc, DIVArray, PolNeuCirc, PolNeuArray, NeuPolArray, NeuPolCirc, DIVCircC, DIVArrayC, GroebnerCirc, Gewicht, DIVArrayOhneGeoC, DIVArrayOhneGeo, DivRestFam, PolNeuCirc2, NeuPolCirc2,DIVCirc2,DIVCircC2,DivRestFam
 
 end
 

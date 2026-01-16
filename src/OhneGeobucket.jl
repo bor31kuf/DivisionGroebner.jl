@@ -27,38 +27,46 @@ function PolNeuArray(f;ord::MonomialOrdering=default_ordering(parent(f)))
             push!(D.Koeffizienten,A[i])
         end
         return D
-    end
-    if typeof(ord.o) ==Oscar.Orderings.WSymbOrdering{:wdeglex}
+    elseif typeof(ord.o) ==Oscar.Orderings.WSymbOrdering{:wdeglex}
         c = ord.o.weights
         for i=1:length(A)
             push!(D.Monome,Vec{W,Int64}((sum(c[j]*B[i][j] for j=1:W-1),B[i]...)))
             push!(D.Koeffizienten,A[i])
         end
         return D
-    end
-    if typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:deglex}
+    elseif typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:deglex}
         for i=1:length(A)
             push!(D.Monome,Vec{W,Int64}((sum(B[i][j] for j=1:W-1),B[i]...)))
             push!(D.Koeffizienten,A[i])
         end
         return D
-    end
-    if typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:degrevlex}
+    elseif typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:degrevlex}
         for i=1:length(A)
             push!(D.Monome,Vec{W,Int64}((sum(B[i][j] for j=1:W-1),reverse(B[i])...)))
             push!(D.Koeffizienten,A[i])
         end
         return D
-    end
-    if typeof(ord.o) ==Oscar.Orderings.WSymbOrdering{:wdegrevlex}
+    elseif typeof(ord.o) ==Oscar.Orderings.WSymbOrdering{:wdegrevlex}
         c = ord.o.weights
         for i=1:length(A)
             push!(D.Monome,Vec{W,Int64}((sum(c[j]*B[i][j] for j=1:W-1),reverse(B[i])...)))
             push!(D.Koeffizienten,A[i])
         end
         return D
+    elseif typeof(ord.o) == Oscar.Orderings.MatrixOrdering
+        W = length(gens(parent(f)))*2
+        D = PolyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}())
+        c = ord.o.matrix
+        for i=1:length(A)
+            push!(D.Monome,Vec{W,Int64}((c*B[i]...,B[i]...)))
+            push!(D.Koeffizienten,A[i])
+        end
+        return D
+    else
+        throw(ArgumentError("Ordnung nicht unterstützt"))
     end
 end  
+    
 
 
 """
@@ -81,38 +89,45 @@ Funktion zum umwandeln vom neuen Polynomtyp in den Oscar Polynomtypen.
 function NeuPolArray(f,PolAlg;ord=default_ordering(PolAlg))
     a=zero(PolAlg)
     k = length(f.Monome)
+    Builder = MPolyBuildCtx(PolAlg)
     if typeof(ord.o) == Oscar.Orderings.WSymbOrdering{:wdegrevlex} ||  typeof(ord.o) == Oscar.Orderings.SymbOrdering{:degrevlex}
+        
         for i=1:k
-            a += monomial(PolAlg,reverse(collect(Tuple(f.Monome[i]))[2:end]))*f.Koeffizienten[i]
+            push_term!(Builder,f.Koeffizienten[i],reverse(collect(Tuple(f.Monome[i]))[2:end]))
         end
-    else 
+    elseif typeof(ord.o) == Oscar.Orderings.SymbOrdering{:deglex} || typeof(ord.o) == Oscar.Orderings.SymbOrdering{:lex} 
+         for i=1:k
+            push_term!(Builder,f.Koeffizienten[i],collect(Tuple(f.Monome[i]))[2:end])
+        end
+    elseif typeof(ord.o) == Oscar.Orderings.MatrixOrdering
+        W = length(gens(PolAlg)) 
         for i=1:k
-            a += monomial(PolAlg,collect(Tuple(f.Monome[i]))[2:end])*f.Koeffizienten[i]
+            push_term!(Builder,f.Koeffizienten[i],collect(Tuple(f.Monome[i]))[W+1:end])
         end
     end
-    return a
+    return finish(Builder)
 end
 
-
+lex
 
 
 """
 Der eigentliche Divisionsalgortihmus
 """
-function DIVArrayOhne(f::PolyNomArray{W},G::Vector{PolyNomArray{W}}) where W
+function DIVArrayOhneGeo(f::PolyNomArray{W},G::Vector{PolyNomArray{W}}) where W
     f2 = PolyNomArray(copy(f.Monome),copy(f.Koeffizienten))
     L = length(f.Monome)
     if length(f.Monome)==0
         return f
     end
-    LTf2 = Leitterm(f2)
+    LTf2 = PolyNomArray([popfirst!(f2.Monome)],FieldElem[popfirst!(f2.Koeffizienten)])
     r = PolyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}())
     D = length(G)
-    while length(LTf2.Monome) != 0
+    while true
         w = false
         for i=1:D
             if sum((first(LTf2.Monome)>=first(G[i].Monome)))==W
-            
+               
                 DIV1 = first(LTf2.Monome)-first(G[i].Monome)
                 DIV2 = -first(LTf2.Koeffizienten)/first(G[i].Koeffizienten)
                 
@@ -129,20 +144,24 @@ function DIVArrayOhne(f::PolyNomArray{W},G::Vector{PolyNomArray{W}}) where W
                 
                 if length(A)!=0
                     g = PolyNomArray(A,B)
-                    f2= add(f2,g)
+                    f2 = add(f2,g)
                 end
-                LTf2 = Leitterm(f2)
+                if length(f2.Monome) == 0
+                    return r
+                end
+                LTf2 =PolyNomArray([popfirst!(f2.Monome)],FieldElem[popfirst!(f2.Koeffizienten)])
+        
                 break
-                empty!(A)
-                empty!(B)
-              
-                return
             end
         end
         if w == false
             push!(r.Monome,LTf2.Monome[1])
             push!(r.Koeffizienten,LTf2.Koeffizienten[1])
-            LTf2 = Leitterm(f2)
+            if length(f2.Monome)==0
+                return r
+            end
+            LTf2 = PolyNomArray([popfirst!(f2.Monome)],FieldElem[popfirst!(f2.Koeffizienten)])
+            
         end
     end
     return r
@@ -252,10 +271,10 @@ end
 """
 Die komplette Divisio
 """
-function DIVArrayC(f,G,ord::MonomialOrdering=default_ordering(parent(f)))
+function DIVArrayOhneGeoC(f,G,ord::MonomialOrdering=default_ordering(parent(f)))
     f2 = PolNeuArray(f,ord=ord)
     W = length(gens(parent(f)))+1
     G2 = [PolNeuArray(G[i],ord=ord) for i=1:length(G)]
-    A = DIVArray(f2,G2)
+    A = DIVArrayOhneGeo(f2,G2)
     return NeuPolArray(A,parent(f),ord=ord)
 end

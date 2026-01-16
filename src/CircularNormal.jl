@@ -114,21 +114,21 @@ function PolNeuCirc2(f;ord::MonomialOrdering=default_ordering(parent(f)))
         D = PolyNomCirc2(CircularDeque{Vector{Int64}}(L),CircularDeque{FieldElem}(L)) 
         c = ord.o.weights
         for i=1:length(A)
-            push!(D.Monome,Vector{Int64}((sum(c[j]*B[i][j] for j=1:W-1),B[i]...)))
+            push!(D.Monome,[sum(c[j]*B[i][j] for j=1:W-1),B[i]...])
             push!(D.Koeffizienten,A[i])
         end
         return D
     elseif typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:deglex}
         D = PolyNomCirc2(CircularDeque{Vector{Int64}}(L),CircularDeque{FieldElem}(L)) 
         for i=1:length(A)
-            push!(D.Monome,Vector{Int64}((sum(B[i][j] for j=1:W-1),B[i]...)))
+            push!(D.Monome,[sum(B[i][j] for j=1:W-1),B[i]...])
             push!(D.Koeffizienten,A[i])
         end
         return D
     elseif typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:degrevlex}
         D = PolyNomCirc2(CircularDeque{Vector{Int64}}(L),CircularDeque{FieldElem}(L)) 
         for i=1:length(A)
-            push!(D.Monome,Vector{Int64}((sum(B[i][j] for j=1:W-1),reverse(B[i])...)))
+            push!(D.Monome,[sum(B[i][j] for j=1:W-1),reverse(B[i])...])
             push!(D.Koeffizienten,A[i])
         end
         return D
@@ -136,7 +136,7 @@ function PolNeuCirc2(f;ord::MonomialOrdering=default_ordering(parent(f)))
         D = PolyNomCirc2(CircularDeque{Vector{Int64}}(L),CircularDeque{FieldElem}(L)) 
         c = ord.o.weights
         for i=1:length(A)
-            push!(D.Monome,Vector{Int64}((sum(c[j]*B[i][j] for j=1:W-1),reverse(B[i])...)))
+            push!(D.Monome,[sum(c[j]*B[i][j] for j=1:W-1),reverse(B[i])...])
             push!(D.Koeffizienten,A[i])
         end
         return D
@@ -145,7 +145,7 @@ function PolNeuCirc2(f;ord::MonomialOrdering=default_ordering(parent(f)))
         D = PolyNomCirc2(CircularDeque{Vector{Int64}}(L),CircularDeque{FieldElem}(L)) 
         c = ord.o.matrix
         for i=1:length(A)
-            push!(D.Monome,Vector{Int64}((c*B[i]...,B[i]...)))
+            push!(D.Monome,[c*B[i]...,B[i]...])
             push!(D.Koeffizienten,A[i])
         end
         return D
@@ -179,16 +179,14 @@ function NeuPolCirc2(f,PolAlg;ord=default_ordering(PolAlg))
         for i=1:k
             push_term!(Builder,f.Koeffizienten[i],reverse(collect(Tuple(f.Monome[i]))[2:end]))
         end
-    elseif typeof(ord.o) == Oscar.Orderings.WSymbOrdering{:wdeglex} || typeof(ord.o) == Oscar.Orderings.SymbOrdering{:lex} 
+    elseif typeof(ord.o) == Oscar.Orderings.SymbOrdering{:deglex} || typeof(ord.o) == Oscar.Orderings.SymbOrdering{:lex} 
          for i=1:k
             push_term!(Builder,f.Koeffizienten[i],collect(Tuple(f.Monome[i]))[2:end])
         end
     elseif typeof(ord.o) == Oscar.Orderings.MatrixOrdering
         W = length(gens(PolAlg)) 
         for i=1:k
-            for i=1:k
-                push_term!(Builder,f.Koeffizienten[i],collect(Tuple(f.Monome[i]))[W+1:end])
-            end
+            push_term!(Builder,f.Koeffizienten[i],collect(Tuple(f.Monome[i]))[W+1:end])
         end
     end
     return finish(Builder)
@@ -203,6 +201,7 @@ function DIVCirc2(f::PolyNomCirc2,G::Vector{PolyNomCirc2})
     if L==0
         return f
     end
+    
     f2 = geobucketpol2([PolyNomCirc2(CircularDeque{Vector{Int64}}(8),CircularDeque{FieldElem}(8))])
     f2 =addgeobucket(f2,f,zeros(Int64,length(first(f.Monome))))
     LTf2M= first(f.Monome)
@@ -269,7 +268,7 @@ function DIVCirc2(f::PolyNomCirc2,G::Vector{PolyNomCirc2},l)
     while true
         w = false
         for i=1:D
-            if sum(LTf2M>=first(G[i].Monome))==W && l!=i
+            if all(LTf2M.>=first(G[i].Monome)) && l!=i
                 
                 DIV1 =LTf2M-first(G[i].Monome)
                 DIV2 = -LTf2K/first(G[i].Koeffizienten)
@@ -453,7 +452,6 @@ function add(f::PolyNomCirc2,g::PolyNomCirc2,DIV1,DIV2)
     return 
     
 end
-
 """
 Addition zweier Polynome
 """
@@ -526,7 +524,6 @@ Macht die komplette Division mit Umwandlung davor und danach
 """
 function DIVCircC2(f,G,ord::MonomialOrdering=default_ordering(parent(f)))
     f2 = PolNeuCirc2(f,ord=ord)
-    W = length(gens(parent(f)))+1
     G2 = [PolNeuCirc2(G[i],ord=ord) for i=1:length(G)]
     A = DIVCirc2(f2,G2)
     return NeuPolCirc2(A,parent(f),ord=ord)

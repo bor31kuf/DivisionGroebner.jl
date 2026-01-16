@@ -174,20 +174,17 @@ function NeuPolCirc(f,PolAlg;ord=default_ordering(PolAlg))
     k = length(f.Monome)
     Builder = MPolyBuildCtx(PolAlg)
     if typeof(ord.o) == Oscar.Orderings.WSymbOrdering{:wdegrevlex} ||  typeof(ord.o) == Oscar.Orderings.SymbOrdering{:degrevlex}
-        
         for i=1:k
             push_term!(Builder,f.Koeffizienten[i],reverse(collect(Tuple(f.Monome[i]))[2:end]))
         end
-    elseif typeof(ord.o) == Oscar.Orderings.WSymbOrdering{:wdeglex} || typeof(ord.o) == Oscar.Orderings.SymbOrdering{:lex} 
-         for i=1:k
+    elseif typeof(ord.o) == Oscar.Orderings.SymbOrdering{:deglex} || typeof(ord.o) == Oscar.Orderings.SymbOrdering{:lex}               
+        for i=1:k
             push_term!(Builder,f.Koeffizienten[i],collect(Tuple(f.Monome[i]))[2:end])
         end
     elseif typeof(ord.o) == Oscar.Orderings.MatrixOrdering
         W = length(gens(PolAlg)) 
         for i=1:k
-            for i=1:k
-                push_term!(Builder,f.Koeffizienten[i],collect(Tuple(f.Monome[i]))[W+1:end])
-            end
+            push_term!(Builder,f.Koeffizienten[i],collect(Tuple(f.Monome[i]))[W+1:end])
         end
     end
     return finish(Builder)
