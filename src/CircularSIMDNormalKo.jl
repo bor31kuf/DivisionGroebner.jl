@@ -4,37 +4,38 @@ Innerhalb der Liste wird ein SIMD Vector bebutzt zur parallelen Operation auf de
 Um nicht immer wieder das potentielle Gewicht des PolyNoms zu berchnen wird es mit gespeichert. 
 """ 
 
-mutable struct PolyNomCirc2
-
-    Monome::CircularDeque{Vector{Int64}}
-    Koeffizienten::CircularDeque{FieldElem}
+mutable struct PolyNomCircKo{W}
+    Monome::CircularDeque{Vec{W,Int64}}
+    Koeffizienten::CircularDeque{ZZRingElem}
+    KoKoeff::ZZRingElem
 end
 
 
 """
 Um das Resultat zu berchnen benutzen wir einen geobucket,für eine schnelle Polynomaddition.
 """
-struct geobucketpol2
-    Bucket::Vector{PolyNomCirc2}
+struct geobucketpolKo{W}
+    Bucket::Vector{PolyNomCircKo{W}}
 end
 
 """
 Die Addition bei einem Geobucket
 """
-function addgeobucket(B::geobucketpol2,f::PolyNomCirc2,DIV1=zeros(Int64,length(first(f.Monome))),DIV2 =QQFieldElem(1)) 
+function addgeobucketKo(B::geobucketpolKo{W},f::PolyNomCircKo,DIV1 = Vec{W,Int64}(ntuple(i-> 0,W)),DIV21=1,DIV22=1) where{W}
     #nochmal hinschauen
     log = cld(64-leading_zeros(length(f.Koeffizienten)),2)
     i=max(1,log)
     m = length(B.Bucket)
     if i <= m
-        add(B.Bucket[i],f,DIV1,DIV2)
+        add(B.Bucket[i],f,DIV1,DIV21,DIV22)
         while i <=m && length(B.Bucket[i].Koeffizienten) > 4^i
             if i!=m
                 add(B.Bucket[i+1],B.Bucket[i])
                 empty!(B.Bucket[i].Koeffizienten)
                 empty!(B.Bucket[i].Monome)
+                B.Bucket[i].KoKoeff =1
             else
-                push!(B.Bucket,PolyNomCirc2(CircularDeque{Vector{Int64}}(2*4^(m+1)),CircularDeque{FieldElem}(2*4^(m+1))))
+                push!(B.Bucket,PolyNomCircKo(CircularDeque{Vec{W,Int64}}(2*4^(m+1)),CircularDeque{ZZRingElem}(2*4^(m+1)),ZZ(1)))
                 add(B.Bucket[m+1],B.Bucket[m])
                 empty!(B.Bucket[m].Koeffizienten)
                 empty!(B.Bucket[m].Monome)
@@ -44,13 +45,13 @@ function addgeobucket(B::geobucketpol2,f::PolyNomCirc2,DIV1=zeros(Int64,length(f
         return B
     end
     for t=m:max(m,i)-1
-        push!(B.Bucket, PolyNomCirc2(CircularDeque{Vector{Int64}}(2*4^(t+1)),CircularDeque{FieldElem}(2*4^(t+1))))
+        push!(B.Bucket, PolyNomCircKo(CircularDeque{Vec{W,Int64}}(2*4^(t+1)),CircularDeque{ZZRingElem}(2*4^(t+1)),ZZ(1)))
     end
-    add(B.Bucket[i],f,DIV1,DIV2) 
+    add(B.Bucket[i],f,DIV1,DIV21,DIV22) 
     return B
 end
 
-function Leitterm(B::geobucketpol2) 
+function LeittermKo(B::geobucketpolKo{W}) where{W}
     m= length(B.Bucket)
     j= 0
     while true
@@ -65,9 +66,10 @@ function Leitterm(B::geobucketpol2)
                     if wt==1
                         j=i
                     elseif wt==2
-                        add!(B.Bucket[j].Koeffizienten.buffer[B.Bucket[j].Koeffizienten.first],first(B.Bucket[i].Koeffizienten))
-                        if iszero(first(B.Bucket[j].Koeffizienten))==false
-                            #add!(B.Bucket[j].Koeffizienten.buffer[B.Bucket[j].Koeffizienten.first],first(B.Bucket[i].Koeffizienten))
+                        if first(B.Bucket[i].Koeffizienten)*B.Bucket[j].KoKoeff + first(B.Bucket[j].Koeffizienten).B.Bucket[i].KoKoeff!=0
+                            #aufpassen
+                            B.Bucket[j].Koeffizienten.buffer[B.Bucket[j].Koeffizienten.first] +=first(B.Bucket[i].Koeffizienten)
+                            println("hier doof")
                             popfirst!(B.Bucket[i].Koeffizienten)
                             popfirst!(B.Bucket[i].Monome)
                         else
@@ -87,9 +89,9 @@ function Leitterm(B::geobucketpol2)
         end
     end
     if j== 0
-        return 0,0
+        return 0,0,0
     end
-    return popfirst!(B.Bucket[j].Monome),popfirst!(B.Bucket[j].Koeffizienten) 
+    return popfirst!(B.Bucket[j].Monome),popfirst!(B.Bucket[j].Koeffizienten),B.Bucket[j].KoKoeff
 end
 
 """
@@ -97,56 +99,58 @@ Eine Umwandlung von einem Oscar Polynom in den neuen Polynomtypen.
 
 Unterstützt werden: lex,wdeglex,deglex,degrevlex,wdegrevlex
 """
-function PolNeuCirc2(f;ord::MonomialOrdering=default_ordering(parent(f)))
+function PolNeuCircKo(f;ord::MonomialOrdering=default_ordering(parent(f)))
     A = collect(coefficients(f,ordering=ord))
     B = collect(exponents(f,ordering=ord))
     L = length(B)
     W= length(gens(parent(f)))+1
     
+    #Aufpassen
     if typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:lex}
-        D = PolyNomCirc2(CircularDeque{Vector{Int64}}(L),CircularDeque{FieldElem}(L)) 
+        f =gcd(A)
+        D = PolyNomCircKo(CircularDeque{Vec{W,Int64}}(L),CircularDeque{ZZRingElem}(L),ZZ(1)) 
         for i=1:length(A)
-            push!(D.Monome,[0,B[i]...])
-            push!(D.Koeffizienten,A[i])
+            push!(D.Monome,Vec{W,Int64}((0,B[i]...)))
+            push!(D.Koeffizienten,Int((A[i]*f.den).num))
         end
         return D
     end
     if typeof(ord.o) ==Oscar.Orderings.WSymbOrdering{:wdeglex}
-        D = PolyNomCirc2(CircularDeque{Vector{Int64}}(L),CircularDeque{FieldElem}(L)) 
+        D = PolyNomCircKo(CircularDeque{Vec{W,Int64}}(L),CircularDeque{ZZRingElem}(L)) 
         c = ord.o.weights
         for i=1:length(A)
-            push!(D.Monome,[sum(c[j]*B[i][j] for j=1:W-1),B[i]...])
+            push!(D.Monome,Vec{W,Int64}((sum(c[j]*B[i][j] for j=1:W-1),B[i]...)))
             push!(D.Koeffizienten,A[i])
         end
         return D
     elseif typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:deglex}
-        D = PolyNomCirc2(CircularDeque{Vector{Int64}}(L),CircularDeque{FieldElem}(L)) 
+        D = PolyNomCircKo(CircularDeque{Vec{W,Int64}}(L),CircularDeque{Int64}(L)) 
         for i=1:length(A)
-            push!(D.Monome,[sum(B[i][j] for j=1:W-1),B[i]...])
+            push!(D.Monome,Vec{W,Int64}((sum(B[i][j] for j=1:W-1),B[i]...)))
             push!(D.Koeffizienten,A[i])
         end
         return D
     elseif typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:degrevlex}
-        D = PolyNomCirc2(CircularDeque{Vector{Int64}}(L),CircularDeque{FieldElem}(L)) 
+        D = PolyNomCircKo(CircularDeque{Vec{W,Int64}}(L),CircularDeque{Int64}(L)) 
         for i=1:length(A)
-            push!(D.Monome,[sum(B[i][j] for j=1:W-1),reverse(B[i])...])
+            push!(D.Monome,Vec{W,Int64}((sum(B[i][j] for j=1:W-1),reverse(B[i])...)))
             push!(D.Koeffizienten,A[i])
         end
         return D
     elseif typeof(ord.o) ==Oscar.Orderings.WSymbOrdering{:wdegrevlex}
-        D = PolyNomCirc2(CircularDeque{Vector{Int64}}(L),CircularDeque{FieldElem}(L)) 
+        D = PolyNomCircKo(CircularDeque{Vec{W,Int64}}(L),CircularDeque{Int64}(L)) 
         c = ord.o.weights
         for i=1:length(A)
-            push!(D.Monome,[sum(c[j]*B[i][j] for j=1:W-1),reverse(B[i])...])
+            push!(D.Monome,Vec{W,Int64}((sum(c[j]*B[i][j] for j=1:W-1),reverse(B[i])...)))
             push!(D.Koeffizienten,A[i])
         end
         return D
     elseif typeof(ord.o) == Oscar.Orderings.MatrixOrdering
         W = length(gens(parent(f)))*2
-        D = PolyNomCirc2(CircularDeque{Vector{Int64}}(L),CircularDeque{FieldElem}(L)) 
+        D = PolyNomCircKo(CircularDeque{Vec{W,Int64}}(L),CircularDeque{Int64}(L)) 
         c = ord.o.matrix
         for i=1:length(A)
-            push!(D.Monome,[c*B[i]...,B[i]...])
+            push!(D.Monome,Vec{W,Int64}((c*B[i]...,B[i]...)))
             push!(D.Koeffizienten,A[i])
         end
         return D
@@ -158,8 +162,8 @@ end
 """
 Funktion für den Vergleich von Monomen. 
 """
-function cmp(a::Vector{Int64},b::Vector{Int64}) 
-    @inbounds for i in 1:length(a)
+function cmp(a::Vec{W,Int64},b::Vec{W,Int64}) where{W}
+    @inbounds for i in 1:W
         if a[i] != b[i]
             return a[i] > b[i]
         end
@@ -171,17 +175,17 @@ end
 """
 Funktion zum umwandeln vom neuen Polynomtyp in den Oscar Polynomtypen.
 """
-function NeuPolCirc2(f,PolAlg;ord=default_ordering(PolAlg))
+function NeuPolCircKo(f,PolAlg;ord=default_ordering(PolAlg))
     a=zero(PolAlg)
     k = length(f.Monome)
     Builder = MPolyBuildCtx(PolAlg)
+    #ganz viel aufpassen
     if typeof(ord.o) == Oscar.Orderings.WSymbOrdering{:wdegrevlex} ||  typeof(ord.o) == Oscar.Orderings.SymbOrdering{:degrevlex}
-        
         for i=1:k
-            push_term!(Builder,f.Koeffizienten[i],reverse(collect(Tuple(f.Monome[i]))[2:end]))
+            push_term!(Builder,Int(f.Koeffizienten[i]),reverse(collect(Tuple(f.Monome[i]))[2:end]))
         end
-    elseif typeof(ord.o) == Oscar.Orderings.SymbOrdering{:deglex} || typeof(ord.o) == Oscar.Orderings.SymbOrdering{:lex} 
-         for i=1:k
+    elseif typeof(ord.o) == Oscar.Orderings.SymbOrdering{:deglex} || typeof(ord.o) == Oscar.Orderings.SymbOrdering{:lex}               
+        for i=1:k
             push_term!(Builder,f.Koeffizienten[i],collect(Tuple(f.Monome[i]))[2:end])
         end
     elseif typeof(ord.o) == Oscar.Orderings.MatrixOrdering
@@ -190,42 +194,54 @@ function NeuPolCirc2(f,PolAlg;ord=default_ordering(PolAlg))
             push_term!(Builder,f.Koeffizienten[i],collect(Tuple(f.Monome[i]))[W+1:end])
         end
     end
-    return finish(Builder)
+    g = finish(Builder)
+    if g == 0
+        return g
+    end
+    B = collect(coefficients(g,ordering=ord))
+    t =gcd(B)
+    return g/t
 end
 
 
 """
 Der eigentliche Divisionsalgortihmus
 """
-function DIVCirc2(f::PolyNomCirc2,G::Vector{PolyNomCirc2})
+function DIVCircKo(f::PolyNomCircKo{W},G::Vector{PolyNomCircKo{W}}) where W
     L = length(f.Koeffizienten)
     if L==0
         return f
     end
-    f2 = geobucketpol2([PolyNomCirc2(CircularDeque{Vector{Int64}}(8),CircularDeque{FieldElem}(8))])
-    f2 =addgeobucket(f2,f)
+  
+    f2 = geobucketpolKo([PolyNomCircKo(CircularDeque{Vec{W,Int64}}(8),CircularDeque{ZZRingElem}(8),ZZ(1))])
+    f2 =addgeobucketKo(f2,f)
     LTf2M= first(f.Monome)
-    LTf2K =first(f.Koeffizienten)
-    r = PolyNomCirc2(CircularDeque{Vector{Int64}}(L),CircularDeque{FieldElem}(L))
+    LTf2K1 =first(f.Koeffizienten)
+    LTf2K2 = f.KoKoeff
+    r = PolyNomCircKo(CircularDeque{Vec{W,Int64}}(L),CircularDeque{ZZRingElem}(L),ZZ(1))
     D = length(G)
     DIV2 = first(G[1].Koeffizienten)
-    W = length(first(f.Monome))
     while true
-
         w = false
         for i=1:D
-            if all(LTf2M.>=first(G[i].Monome))
+            if sum(LTf2M>=first(G[i].Monome))==W
                 
                 DIV1 =LTf2M-first(G[i].Monome)
-                div!(DIV2,-LTf2K,first(G[i].Koeffizienten))
+                DIV21 = LTf2K1*G[i].KoKoeff
+                DIV22 = LTf2K2*first(G[i].Koeffizienten)
+                ggt = gcd(DIV21,DIV22)
+                DIV21 = divexact(DIV21,ggt)
+                DIV22 = divexact(DIV22,ggt)
                 L2 = length(G[i].Koeffizienten)
                 w = true
                 if L2!=1
-                    f2= addgeobucket(f2,G[i],DIV1,DIV2)
+                    f2= addgeobucketKo(f2,G[i],DIV1,DIV21,DIV22)
+                
                 end
-            
-                LTf2M,LTf2K = Leitterm(f2)
-                if iszero(LTf2K)
+                
+                LTf2M,LTf2K1,LTf2K2 = LeittermKo(f2)
+                if LTf2K1 == 0
+                  
                     return r
                 end
                 break
@@ -233,19 +249,19 @@ function DIVCirc2(f::PolyNomCirc2,G::Vector{PolyNomCirc2})
             end
         end
         if w == false
-            r= pushing(r,LTf2M,LTf2K)
-            LTf2M,LTf2K = Leitterm(f2)
-            if iszero(LTf2K)
+            #hier
+            r= pushing(r,LTf2M,LTf2K1)
+            #Falsch. aber ok
+            LTf2M,LTf2K1,LTf2K2 = LeittermKo(f2)
+            if LTf2K1 == 0
+             
                 if length(r.Koeffizienten) == 0
                     return r
                 end
                 if first(r.Koeffizienten) == 1
                     return r
                 else 
-                    tt = first(r.Koeffizienten)
-                    for i =1:length(r.Koeffizienten)
-                        div!(r.Koeffizienten.buffer[i],tt)
-                    end
+                    r.KoKoeff = 1
                     return r
                 end
             end
@@ -253,75 +269,18 @@ function DIVCirc2(f::PolyNomCirc2,G::Vector{PolyNomCirc2})
     end
 end
 
-"""
-ignoriert ein Element aus G
-"""
-
-function DIVCirc2(f::PolyNomCirc2,G::Vector{PolyNomCirc2},l) 
-    L = length(f.Koeffizienten)
-    if L==0
-        return f
-    end
-    f2 = geobucketpol2([PolyNomCirc2(CircularDeque{Vector{Int64}}(8),CircularDeque{FieldElem}(8))])
-    f2 =addgeobucket(f2,f,zeros(Int64,length(first(f.Monome))))
-    LTf2M= first(f.Monome)
-    LTf2K =first(f.Koeffizienten)
-    r = PolyNomCirc2(CircularDeque{Vector{Int64}}(L),CircularDeque{FieldElem}(L))
-    D = length(G)
-    W= length(first(f.Monome))
-    while true
-        w = false
-        for i=1:D
-            if all(LTf2M.>=first(G[i].Monome)) && l!=i
-                
-                DIV1 =LTf2M-first(G[i].Monome)
-                DIV2 = -LTf2K/first(G[i].Koeffizienten)
-                L2 = length(G[i].Koeffizienten)
-                w = true
-                if L2!=1
-                    f2= addgeobucket(f2,G[i],DIV1,DIV2)
-                end
-            
-                LTf2M,LTf2K = Leitterm(f2)
-                if LTf2K == 0
-                    return r
-                end
-                break
-        
-            end
-        end
-        if w == false
-            r= pushing(r,LTf2M,LTf2K)
-            LTf2M,LTf2K = Leitterm(f2)
-            if LTf2K == 0
-                if length(r.Koeffizienten) == 0
-                    return r
-                end
-                if first(r.Koeffizienten) == 1
-                    return r
-                else 
-                    tt = first(r.Koeffizienten)
-                    for i =1:length(r.Koeffizienten)
-                        r.Koeffizienten.buffer[i] /= tt
-                    end
-                    return r
-                end
-            end
-        end
-    end
-end
-
+  
 """
 Weil mit einer CircularDeque gearbeitet wird muss beim Einfügen die Größe potentiell verändert werden.
 """
-function pushing(r::PolyNomCirc2,LTf2M,LTf2K) 
+function pushing(r::PolyNomCircKo{W},LTf2M,LTf2K) where{W}
     if capacity(r.Koeffizienten) > length(r.Koeffizienten)
         push!(r.Monome,LTf2M)
         push!(r.Koeffizienten,LTf2K)
         return r
     else
-        r21 = CircularDeque{Vector{Int64}}(2*capacity(r.Monome))
-        r22 = CircularDeque{FieldElem}(2*capacity(r.Monome))
+        r21 = CircularDeque{Vec{W,Int64}}(2*capacity(r.Monome))
+        r22 = CircularDeque{ZZRingElem}(2*capacity(r.Monome))
         for i=1:length(r.Koeffizienten)
             push!(r21,r.Monome[i])
             push!(r22,r.Koeffizienten[i]) 
@@ -330,60 +289,9 @@ function pushing(r::PolyNomCirc2,LTf2M,LTf2K)
         push!(r22,LTf2K)
     end
 
-    return PolyNomCirc2(r21,r22)
+    return PolyNomCircKo(r21,r22,r.KoKoeff)
 end
 
-
-"""
-Subtraktion mit Zusatzinfos
-
-"""
-function Sub1(f::PolyNomCirc2,g::PolyNomCirc2,mf,mg,kf,kg) 
-    j=1
-    k=1
-    lg = length(g.Koeffizienten)
-    lf = length(f.Koeffizienten)
-    A = CircularDeque{Vector{Int64}}(lg+lf)
-    C = CircularDeque{FieldElem}(lg+lf)
-        
-
-    while k <=lf && j <= lg
-      
-        x = cmp(f.Monome[k]+mf,g.Monome[j]+mg)
-        #potentiell aufpassen
-        if x == 0
-            push!(A,g.Monome[j]+mg)
-            push!(C,g.Koeffizienten[j]*kg)
-            j+=1
-        elseif x==2
-            if g.Koeffizienten[j]*kg+f.Koeffizienten[k]*kf != 0
-                push!(C,f.Koeffizienten[k]*kf + g.Koeffizienten[j]*kg)
-                push!(A,f.Monome[k]+mf)
-            end
-            k+=1
-            j+=1
-        else
-            push!(A,f.Monome[k]+mf)
-            push!(C,f.Koeffizienten[k]*kf)
-            k+= 1
-        end    
-    end
-    while j <=lg
-        push!(A,g.Monome[j]+mg)
-        push!(C,g.Koeffizienten[j]*kg)
-        j+=1
-    end
-    while k <=lf
-        push!(A,f.Monome[k]+mf)
-        push!(C,f.Koeffizienten[k]*kf)
-        k+=1
-    end
-    
-
-    f2 = PolyNomCirc2(A,C)
-
-    return f2
-end
 
 
 """
@@ -392,32 +300,27 @@ Addition zweier Monome mit Zusatzinfos
 so ist das eigentliche Addition f+g*(DIV1,DIV2)
 DIV1 ist das Monom, DIV2 der Koeffizient
 """
-function add(f::PolyNomCirc2,g::PolyNomCirc2,DIV1,DIV2)
+function add(f::PolyNomCircKo{W},g::PolyNomCircKo{W},DIV1,DIV21,DIV22)where{W}
     lf = length(f.Koeffizienten)
     lg = length(g.Koeffizienten)
     k= 1
     j= 2
     A =f.Koeffizienten.last
     t = 0
+    ggt = gcd(g.KoKoeff*DIV22,f.KoKoeff*DIV21)
+    ggt1  = divexact(g.KoKoeff*DIV22,ggt)
+    ggt2 = divexact(f.KoKoeff*DIV21,ggt)
     while k <=lf && j <= lg
         t+=1
         x = cmp(f.Monome[k],g.Monome[j]+DIV1)
         #potentiell aufpassen
         if x == 0
-            #println(" ")
-            #println(g.Koeffizienten[j]*DIV2)
             push!(f.Monome,g.Monome[j]+DIV1)
-            push!(f.Koeffizienten,g.Koeffizienten[j]*DIV2)
-            #println(f.Koeffizienten.buffer[f.Koeffizienten.last])
-               
+            push!(f.Koeffizienten,g.Koeffizienten[j]*ggt2)
             j+=1
         elseif x==2
-            D = f.Koeffizienten[k]
-            div!(D,DIV2)
-            add!(D,g.Koeffizienten[j])
-            mul!(D,DIV2)
-            if iszero(D) == false
-                push!(f.Koeffizienten,D)
+            if f.Koeffizienten[k]*ggt1+g.Koeffizienten[j]*ggt2 != 0
+                push!(f.Koeffizienten,f.Koeffizienten[k]*ggt1+ g.Koeffizienten[j]*ggt2)
                 push!(f.Monome,f.Monome[k])
             else
                 f.Koeffizienten.n +=1
@@ -428,7 +331,7 @@ function add(f::PolyNomCirc2,g::PolyNomCirc2,DIV1,DIV2)
             j+=1
         else
             push!(f.Monome,f.Monome[k])
-            push!(f.Koeffizienten,f.Koeffizienten[k])
+            push!(f.Koeffizienten,f.Koeffizienten[k]*ggt1)
             k+=1
         end
         f.Koeffizienten.n -=1
@@ -436,7 +339,7 @@ function add(f::PolyNomCirc2,g::PolyNomCirc2,DIV1,DIV2)
     end
     while j <=lg
         push!(f.Monome,g.Monome[j]+DIV1)
-        push!(f.Koeffizienten,g.Koeffizienten[j]*DIV2)
+        push!(f.Koeffizienten,g.Koeffizienten[j]*ggt2)
         f.Koeffizienten.n -=1
         f.Monome.n -=1
         t+=1
@@ -445,7 +348,7 @@ function add(f::PolyNomCirc2,g::PolyNomCirc2,DIV1,DIV2)
 
     while k <=lf
         push!(f.Monome,f.Monome[k])
-        push!(f.Koeffizienten,f.Koeffizienten[k])
+        push!(f.Koeffizienten,f.Koeffizienten[k]*ggt1)
         f.Koeffizienten.n -=1
         f.Monome.n -=1
         t+=1
@@ -460,7 +363,7 @@ function add(f::PolyNomCirc2,g::PolyNomCirc2,DIV1,DIV2)
     end
     f.Monome.n  = t
     f.Koeffizienten.n = t
-    
+    f.KoKoeff *= g.KoKoeff*DIV22
     return 
     
 end
@@ -468,26 +371,27 @@ end
 """
 Addition zweier Polynome
 """
-function add(f::PolyNomCirc2,g::PolyNomCirc2)
+function add(f::PolyNomCircKo{W},g::PolyNomCircKo{W})where{W}
     lf = length(f.Koeffizienten)
     lg = length(g.Koeffizienten)
     k= 1
     j=1
     A =f.Koeffizienten.last
     t = 0
+    ggt = gcd(f.KoKoeff,g.KoKoeff)
+    ggt1 = divexact(f.KoKoeff,ggt)
+    ggt2 = divexact(g.KoKoeff,ggt)
     while k <=lf && j <= lg
         t+=1
         x = cmp(f.Monome[k],g.Monome[j])
  
         if x == 0
             push!(f.Monome,g.Monome[j])
-            push!(f.Koeffizienten,g.Koeffizienten[j])
+            push!(f.Koeffizienten,g.Koeffizienten[j]*ggt2)
             j+=1
         elseif x==2
-            D  = f.Koeffizienten[k]
-            add!(D,g.Koeffizienten[j])   
-            if iszero(D) == false
-                push!(f.Koeffizienten,D)
+            if f.Koeffizienten[k]*ggt1+g.Koeffizienten[j]*ggt2 != 0
+                push!(f.Koeffizienten,f.Koeffizienten[k]*ggt2+ g.Koeffizienten[j]*ggt1)
                 push!(f.Monome,f.Monome[k])
             else
                 f.Koeffizienten.n +=1
@@ -498,7 +402,7 @@ function add(f::PolyNomCirc2,g::PolyNomCirc2)
             j+=1
         else
             push!(f.Monome,f.Monome[k])
-            push!(f.Koeffizienten,f.Koeffizienten[k])
+            push!(f.Koeffizienten,f.Koeffizienten[k]*ggt1)
             k+=1
         end
         f.Koeffizienten.n -=1
@@ -506,7 +410,7 @@ function add(f::PolyNomCirc2,g::PolyNomCirc2)
     end
     while j <=lg
         push!(f.Monome,g.Monome[j])
-        push!(f.Koeffizienten,g.Koeffizienten[j])
+        push!(f.Koeffizienten,g.Koeffizienten[j]*ggt2)
         f.Koeffizienten.n -=1
         f.Monome.n -=1
         t+=1
@@ -515,7 +419,7 @@ function add(f::PolyNomCirc2,g::PolyNomCirc2)
 
     while k <=lf
         push!(f.Monome,f.Monome[k])
-        push!(f.Koeffizienten,f.Koeffizienten[k])
+        push!(f.Koeffizienten,f.Koeffizienten[k]*ggt1)
         f.Koeffizienten.n -=1
         f.Monome.n -=1
         t+=1
@@ -528,21 +432,20 @@ function add(f::PolyNomCirc2,g::PolyNomCirc2)
         f.Monome.first = 1
         f.Koeffizienten.first = 1
     end
+    f.KoKoeff *= g.KoKoeff
     f.Monome.n  = t
     f.Koeffizienten.n = t
     return 
     
 end
 
-
-
-
 """
 Macht die komplette Division mit Umwandlung davor und danach
 """
-function DIVCircC2(f,G,ord::MonomialOrdering=default_ordering(parent(f)))
-    f2 = PolNeuCirc2(f,ord=ord)
-    G2 = [PolNeuCirc2(G[i],ord=ord) for i=1:length(G)]
-    A = DIVCirc2(f2,G2)
-    return NeuPolCirc2(A,parent(f),ord=ord)
+function DIVCircCKo(f,G,ord::MonomialOrdering=default_ordering(parent(f)))
+    f2 = PolNeuCircKo(f,ord=ord)
+    W = length(gens(parent(f)))+1
+    G2 = [PolNeuCircKo(G[i],ord=ord) for i=1:length(G)]
+    A = DIVCircKo(f2,G2)
+    return NeuPolCircKo(A,parent(f),ord=ord)
 end

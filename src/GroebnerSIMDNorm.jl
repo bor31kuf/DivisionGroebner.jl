@@ -31,6 +31,12 @@ function Buchberger2(G::Vector{PolyNomCirc{W}},c::Vec{W,Int64}) where{W}
             if length(S.Monome)!=0
                 push!(G,S)
                 Queue, Bits = QUEUE(G,Queue,Bits,k)
+                if length(G)==30
+                    G=reduce_groebner(G)
+                    println("ja")
+                    println(length(G))
+                    return Buchberger2(G,c)
+                end
             end
         end
         k+=1

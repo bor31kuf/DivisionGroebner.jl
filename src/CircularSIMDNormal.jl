@@ -64,8 +64,9 @@ function Leitterm(B::geobucketpol1{W}) where{W}
                     if wt==1
                         j=i
                     elseif wt==2
-                        if first(B.Bucket[i].Koeffizienten) + first(B.Bucket[j].Koeffizienten)!=0
-                            B.Bucket[j].Koeffizienten.buffer[B.Bucket[j].Koeffizienten.first]+=first(B.Bucket[i].Koeffizienten)
+                        add!(B.Bucket[j].Koeffizienten.buffer[B.Bucket[j].Koeffizienten.first],first(B.Bucket[i].Koeffizienten))
+                        if iszero(first(B.Bucket[j].Koeffizienten))==false
+                            #add!(B.Bucket[j].Koeffizienten.buffer[B.Bucket[j].Koeffizienten.first],first(B.Bucket[i].Koeffizienten))
                             popfirst!(B.Bucket[i].Koeffizienten)
                             popfirst!(B.Bucket[i].Monome)
                         else
@@ -205,13 +206,15 @@ function DIVCirc(f::PolyNomCirc{W},G::Vector{PolyNomCirc{W}}) where W
     LTf2K =first(f.Koeffizienten)
     r = PolyNomCirc(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L))
     D = length(G)
+    DIV2 = first(G[1].Koeffizienten)
     while true
+
         w = false
         for i=1:D
             if sum(LTf2M>=first(G[i].Monome))==W
                 
                 DIV1 =LTf2M-first(G[i].Monome)
-                DIV2 = -LTf2K/first(G[i].Koeffizienten)
+                div!(DIV2,-LTf2K,first(G[i].Koeffizienten))
                 L2 = length(G[i].Koeffizienten)
                 w = true
                 if L2!=1
@@ -219,7 +222,7 @@ function DIVCirc(f::PolyNomCirc{W},G::Vector{PolyNomCirc{W}}) where W
                 end
             
                 LTf2M,LTf2K = Leitterm(f2)
-                if LTf2K == 0
+                if iszero(LTf2K)
                     return r
                 end
                 break
@@ -229,7 +232,7 @@ function DIVCirc(f::PolyNomCirc{W},G::Vector{PolyNomCirc{W}}) where W
         if w == false
             r= pushing(r,LTf2M,LTf2K)
             LTf2M,LTf2K = Leitterm(f2)
-            if LTf2K == 0
+            if iszero(LTf2K)
                 if length(r.Koeffizienten) == 0
                     return r
                 end
@@ -238,7 +241,7 @@ function DIVCirc(f::PolyNomCirc{W},G::Vector{PolyNomCirc{W}}) where W
                 else 
                     tt = first(r.Koeffizienten)
                     for i =1:length(r.Koeffizienten)
-                        r.Koeffizienten.buffer[i] /= tt
+                        div!(r.Koeffizienten.buffer[i],tt)
                     end
                     return r
                 end
@@ -267,11 +270,11 @@ function DIVCirc(f::PolyNomCirc{W},G::Vector{PolyNomCirc{W}},l) where W
             if sum(LTf2M>=first(G[i].Monome))==W && l!=i
                 
                 DIV1 =LTf2M-first(G[i].Monome)
-                DIV2 = -LTf2K/first(G[i].Koeffizienten)
+                div!(LTf2K,-first(G[i].Koeffizienten))
                 L2 = length(G[i].Koeffizienten)
                 w = true
                 if L2!=1
-                    f2= addgeobucket(f2,G[i],DIV1,DIV2)
+                    f2= addgeobucket(f2,G[i],DIV1,LTf2K)
                 end
             
                 LTf2M,LTf2K = Leitterm(f2)
@@ -393,15 +396,24 @@ function add(f::PolyNomCirc{W},g::PolyNomCirc{W},DIV1,DIV2)where{W}
     t = 0
     while k <=lf && j <= lg
         t+=1
+        m = g.Monome[j]+DIV1
         x = cmp(f.Monome[k],g.Monome[j]+DIV1)
         #potentiell aufpassen
         if x == 0
+            #println(" ")
+            #println(g.Koeffizienten[j]*DIV2)
             push!(f.Monome,g.Monome[j]+DIV1)
             push!(f.Koeffizienten,g.Koeffizienten[j]*DIV2)
+            #println(f.Koeffizienten.buffer[f.Koeffizienten.last])
+               
             j+=1
         elseif x==2
-            if f.Koeffizienten[k]+g.Koeffizienten[j]*DIV2 != 0
-                push!(f.Koeffizienten,f.Koeffizienten[k]+ g.Koeffizienten[j]*DIV2)
+            D = f.Koeffizienten[k]
+            div!(D,DIV2)
+            add!(D,g.Koeffizienten[j])
+            mul!(D,DIV2)
+            if iszero(D) == false
+                push!(f.Koeffizienten,D)
                 push!(f.Monome,f.Monome[k])
             else
                 f.Koeffizienten.n +=1
@@ -468,8 +480,10 @@ function add(f::PolyNomCirc{W},g::PolyNomCirc{W})where{W}
             push!(f.Koeffizienten,g.Koeffizienten[j])
             j+=1
         elseif x==2
-            if f.Koeffizienten[k]+g.Koeffizienten[j] != 0
-                push!(f.Koeffizienten,f.Koeffizienten[k]+ g.Koeffizienten[j])
+            D  = f.Koeffizienten[k]
+            add!(D,g.Koeffizienten[j])   
+            if iszero(D) == false
+                push!(f.Koeffizienten,D)
                 push!(f.Monome,f.Monome[k])
             else
                 f.Koeffizienten.n +=1
