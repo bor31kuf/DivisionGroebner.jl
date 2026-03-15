@@ -202,6 +202,7 @@ function DIVCirc2(f::PolyNomCirc2,G::Vector{PolyNomCirc2})
     if L==0
         return f
     end
+    mh = 1
     f2 = geobucketpol2([PolyNomCirc2(CircularDeque{Vector{Int64}}(8),CircularDeque{FieldElem}(8))])
     f2 =addgeobucket(f2,f)
     LTf2M= first(f.Monome)
@@ -215,7 +216,7 @@ function DIVCirc2(f::PolyNomCirc2,G::Vector{PolyNomCirc2})
         w = false
         for i=1:D
             if all(LTf2M.>=first(G[i].Monome))
-                
+                mh+=1
                 DIV1 =LTf2M-first(G[i].Monome)
                 div!(DIV2,-LTf2K,first(G[i].Koeffizienten))
                 L2 = length(G[i].Koeffizienten)
@@ -226,6 +227,7 @@ function DIVCirc2(f::PolyNomCirc2,G::Vector{PolyNomCirc2})
             
                 LTf2M,LTf2K = Leitterm(f2)
                 if iszero(LTf2K)
+                    println(mh)
                     return r
                 end
                 break
@@ -236,6 +238,7 @@ function DIVCirc2(f::PolyNomCirc2,G::Vector{PolyNomCirc2})
             r= pushing(r,LTf2M,LTf2K)
             LTf2M,LTf2K = Leitterm(f2)
             if iszero(LTf2K)
+                println(mh)
                 if length(r.Koeffizienten) == 0
                     return r
                 end

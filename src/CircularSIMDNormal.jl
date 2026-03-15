@@ -1,5 +1,4 @@
 
-
 """
 Polynoimals are saved in a Circular Deque for fast deleting/inserting at the fron oft the list.
 In the Circular Deque there are SIMD-vetors for fast parallel operationson the vector.
@@ -32,12 +31,14 @@ function addgeobucket(B::geobucketpol1{W},f::PolyNomCirc,DIV1 = Vec{W,Int64}(ntu
     if i <= m
         add(B.bucket[i],f,DIV1,DIV2)
         while i <=m && length(B.bucket[i].coefficients) > 4^i
-            if i!=m
+            if i!=m 
                 add(B.bucket[i+1],B.bucket[i])
                 empty!(B.bucket[i].coefficients)
                 empty!(B.bucket[i].monoms)
             else
+                v = [QQFieldElem(Val(:raw)) for z = 1:2*4^(m+1)]
                 push!(B.bucket,PolyNomCirc(CircularDeque{Vec{W,Int64}}(2*4^(m+1)),CircularDeque{FieldElem}(2*4^(m+1))))
+                B.bucket[m+1].coefficients.buffer = v
                 add(B.bucket[m+1],B.bucket[m])
                 empty!(B.bucket[m].coefficients)
                 empty!(B.bucket[m].monoms)
@@ -47,7 +48,9 @@ function addgeobucket(B::geobucketpol1{W},f::PolyNomCirc,DIV1 = Vec{W,Int64}(ntu
         return B
     end
     for t=m:max(m,i)-1
+        v = [QQFieldElem(Val(:raw)) for z = 1:2*4^(t+1)]
         push!(B.bucket, PolyNomCirc(CircularDeque{Vec{W,Int64}}(2*4^(t+1)),CircularDeque{FieldElem}(2*4^(t+1))))
+        B.bucket[t+1].coefficients.buffer = v
     end
     add(B.bucket[i],f,DIV1,DIV2) 
     return B
@@ -57,7 +60,7 @@ end
 """
 The extraction of the leading term in average log(size of B)
 """
-function leading_term(B::geobucketpol1{W}) where{W}
+function leading_term(B::geobucketpol1{W},LTf2K) where{W}
     m= length(B.bucket)
     j= 0
     while true
@@ -74,12 +77,12 @@ function leading_term(B::geobucketpol1{W}) where{W}
                     elseif wt==2
                         add!(B.bucket[j].coefficients.buffer[B.bucket[j].coefficients.first],first(B.bucket[i].coefficients))
                         if iszero(first(B.bucket[j].coefficients))==false
-                            popfirst!(B.bucket[i].coefficients)
+                            popfirst2!(B.bucket[i].coefficients)
                             popfirst!(B.bucket[i].monoms)
                         else
-                            popfirst!(B.bucket[i].coefficients)
+                            popfirst2!(B.bucket[i].coefficients)
                             popfirst!(B.bucket[i].monoms)
-                            popfirst!(B.bucket[j].coefficients)
+                            popfirst2!(B.bucket[j].coefficients)
                             popfirst!(B.bucket[j].monoms)
                             w = false
                             break
@@ -93,9 +96,34 @@ function leading_term(B::geobucketpol1{W}) where{W}
         end
     end
     if j== 0
-        return 0,0
+        return 0,QQ(0)
     end
-    return popfirst!(B.bucket[j].monoms),popfirst!(B.bucket[j].coefficients) 
+    
+    LTf2K = popfirst3!(B.bucket[j].coefficients)
+    return popfirst!(B.bucket[j].monoms),LTf2K
+end
+
+function popfirst3!(D)
+    v = first(D)
+    D.buffer[D.first] = QQFieldElem(Val(:raw)) # see issue/884
+    D.n -= 1
+    tmp = D.first + 1
+    D.first = ifelse(tmp > D.capacity, 1, tmp)
+    v
+end
+
+function popfirst2!(D)
+    D.n -= 1
+    tmp = D.first + 1
+    D.first = ifelse(tmp > D.capacity, 1, tmp)
+end
+
+function push2!(D,a)
+    D.n += 1
+    tmp = D.last + 1
+    D.last = ifelse(tmp > D.capacity, 1, tmp)  # wraparound
+    Nemo.set!(D.buffer[D.last],a)
+    return D
 end
 
 """
@@ -208,27 +236,29 @@ function DIVCirc(f::PolyNomCirc{W},G::Vector{PolyNomCirc{W}}) where W
         return f
     end
     f2 = geobucketpol1([PolyNomCirc(CircularDeque{Vec{W,Int64}}(8),CircularDeque{FieldElem}(8))])
+    f2.bucket[1].coefficients.buffer = [QQFieldElem(Val(:raw)) for z=1:8]
     f2 =addgeobucket(f2,f)
     LTf2M= first(f.monoms)
     LTf2K =first(f.coefficients)
     r = PolyNomCirc(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L))
     D = length(G)
-    DIV2 = first(G[1].coefficients)
+    DIV2 = QQFieldElem(Val(:raw))
     while true
-
+       
         w = false
         for i=1:D
             if sum(LTf2M>=first(G[i].monoms))==W
                 
                 DIV1 =LTf2M-first(G[i].monoms)
-                div!(DIV2,-LTf2K,first(G[i].coefficients))
+                Nemo.set!(DIV2,div!(-LTf2K,first(G[i].coefficients)))
+  
                 L2 = length(G[i].coefficients)
                 w = true
                 if L2!=1
                     f2= addgeobucket(f2,G[i],DIV1,DIV2)
                 end
             
-                LTf2M,LTf2K = leading_term(f2)
+                LTf2M,LTf2K = leading_term(f2,LTf2K)
                 if iszero(LTf2K)
                     return r
                 end
@@ -238,7 +268,7 @@ function DIVCirc(f::PolyNomCirc{W},G::Vector{PolyNomCirc{W}}) where W
         end
         if w == false
             r= pushing(r,LTf2M,LTf2K)
-            LTf2M,LTf2K = leading_term(f2)
+            LTf2M,LTf2K = leading_term(f2,LTf2K)
             if iszero(LTf2K)
                 if length(r.coefficients) == 0
                     return r
@@ -260,58 +290,7 @@ end
 """
 is ignoring an element of G
 """
-function DIVCirc(f::PolyNomCirc{W},G::Vector{PolyNomCirc{W}},l) where W
-    L = length(f.coefficients)
-    if L==0
-        return f
-    end
-    f2 = geobucketpol1([PolyNomCirc(CircularDeque{Vec{W,Int64}}(8),CircularDeque{FieldElem}(8))])
-    f2 =addgeobucket(f2,f)
-    LTf2M= first(f.monoms)
-    LTf2K =first(f.coefficients)
-    r = PolyNomCirc(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L))
-    D = length(G)
-    while true
-        w = false
-        for i=1:D
-            if sum(LTf2M>=first(G[i].monoms))==W && l!=i
-                
-                DIV1 =LTf2M-first(G[i].monoms)
-                div!(LTf2K,-first(G[i].coefficients))
-                L2 = length(G[i].coefficients)
-                w = true
-                if L2!=1
-                    f2= addgeobucket(f2,G[i],DIV1,LTf2K)
-                end
-            
-                LTf2M,LTf2K = leading_term(f2)
-                if LTf2K == 0
-                    return r
-                end
-                break
-        
-            end
-        end
-        if w == false
-            r= pushing(r,LTf2M,LTf2K)
-            LTf2M,LTf2K = leading_term(f2)
-            if LTf2K == 0
-                if length(r.coefficients) == 0
-                    return r
-                end
-                if first(r.coefficients) == 1
-                    return r
-                else 
-                    tt = first(r.coefficients)
-                    for i =1:length(r.coefficients)
-                        r.coefficients.buffer[i] /= tt
-                    end
-                    return r
-                end
-            end
-        end
-    end
-end
+
 
 """
 Because we have a CircularDeque which is fixed in size we have sometimes copy it in a bigger CircularDeque
@@ -320,6 +299,7 @@ function pushing(r::PolyNomCirc{W},LTf2M,LTf2K) where{W}
     if capacity(r.coefficients) > length(r.coefficients)
         push!(r.monoms,LTf2M)
         push!(r.coefficients,LTf2K)
+        
         return r
     else
         r21 = CircularDeque{Vec{W,Int64}}(2*capacity(r.monoms))
@@ -337,58 +317,6 @@ end
 
 
 """
-Subtraktion mit Zusatzinfos
-
-"""
-function Sub1(f::PolyNomCirc{W},g::PolyNomCirc{W},mf,mg,kf,kg) where{W}
-    j=1
-    k=1
-    lg = length(g.coefficients)
-    lf = length(f.coefficients)
-    A = CircularDeque{Vec{W,Int64}}(lg+lf)
-    C = CircularDeque{FieldElem}(lg+lf)
-        
-
-    while k <=lf && j <= lg
-      
-        x = cmp(f.monoms[k]+mf,g.monoms[j]+mg)
-        #potentiell aufpassen
-        if x == 0
-            push!(A,g.monoms[j]+mg)
-            push!(C,g.coefficients[j]*kg)
-            j+=1
-        elseif x==2
-            if g.coefficients[j]*kg+f.coefficients[k]*kf != 0
-                push!(C,f.coefficients[k]*kf + g.coefficients[j]*kg)
-                push!(A,f.monoms[k]+mf)
-            end
-            k+=1
-            j+=1
-        else
-            push!(A,f.monoms[k]+mf)
-            push!(C,f.coefficients[k]*kf)
-            k+= 1
-        end    
-    end
-    while j <=lg
-        push!(A,g.monoms[j]+mg)
-        push!(C,g.coefficients[j]*kg)
-        j+=1
-    end
-    while k <=lf
-        push!(A,f.monoms[k]+mf)
-        push!(C,f.coefficients[k]*kf)
-        k+=1
-    end
-    
-
-    f2 = PolyNomCirc(A,C)
-
-    return f2
-end
-
-
-"""
 Addition zweier monoms mit Zusatzinfos
 
 so ist das eigentliche Addition f+g*(DIV1,DIV2)
@@ -401,6 +329,9 @@ function add(f::PolyNomCirc{W},g::PolyNomCirc{W},DIV1,DIV2)where{W}
     j= 2
     A =f.coefficients.last
     t = 0
+    t2 = f.coefficients.buffer
+    u = 0
+    #println(length(t2))
     while k <=lf && j <= lg
         t+=1
         m = g.monoms[j]+DIV1
@@ -410,7 +341,8 @@ function add(f::PolyNomCirc{W},g::PolyNomCirc{W},DIV1,DIV2)where{W}
             #println(" ")
             #println(g.coefficients[j]*DIV2)
             push!(f.monoms,g.monoms[j]+DIV1)
-            push!(f.coefficients,g.coefficients[j]*DIV2)
+            Nemo.set!(t2[f.monoms.last],g.coefficients[j])
+            mul!(t2[f.monoms.last],DIV2)
             #println(f.coefficients.buffer[f.coefficients.last])
                
             j+=1
@@ -420,27 +352,29 @@ function add(f::PolyNomCirc{W},g::PolyNomCirc{W},DIV1,DIV2)where{W}
             add!(D,g.coefficients[j])
             mul!(D,DIV2)
             if iszero(D) == false
-                push!(f.coefficients,D)
+                Nemo.set!(t2[f.monoms.last],D)
                 push!(f.monoms,f.monoms[k])
+                u+=1
             else
-                f.coefficients.n +=1
+                u+=2
                 f.monoms.n +=1
                 t-=1
             end
+ 
             k+=1
             j+=1
         else
             push!(f.monoms,f.monoms[k])
-            push!(f.coefficients,f.coefficients[k])
+            Nemo.set!(t2[f.monoms.last],f.coefficients[k])
             k+=1
         end
-        f.coefficients.n -=1
+        
         f.monoms.n -=1   
     end
     while j <=lg
         push!(f.monoms,g.monoms[j]+DIV1)
-        push!(f.coefficients,g.coefficients[j]*DIV2)
-        f.coefficients.n -=1
+        Nemo.set!(t2[f.monoms.last],g.coefficients[j])
+        mul!(t2[f.monoms.last],DIV2)
         f.monoms.n -=1
         t+=1
         j+=1
@@ -448,8 +382,7 @@ function add(f::PolyNomCirc{W},g::PolyNomCirc{W},DIV1,DIV2)where{W}
 
     while k <=lf
         push!(f.monoms,f.monoms[k])
-        push!(f.coefficients,f.coefficients[k])
-        f.coefficients.n -=1
+        Nemo.set!(t2[f.monoms.last],f.coefficients[k])
         f.monoms.n -=1
         t+=1
         k+=1
@@ -463,7 +396,11 @@ function add(f::PolyNomCirc{W},g::PolyNomCirc{W},DIV1,DIV2)where{W}
     end
     f.monoms.n  = t
     f.coefficients.n = t
-    
+    f.coefficients.last = f.monoms.last
+    f.coefficients.buffer = t2
+    #println(f.coefficients)
+    #println(f.coefficients.buffer)
+    #sprintln(" ")
     return 
     
 end
@@ -547,7 +484,3 @@ function DIVCircC(f,G,ord::MonomialOrdering=default_ordering(parent(f)))
     A = DIVCirc(f2,G2)
     return newPolCirc(A,parent(f),ord=ord)
 end
-
-
-
-

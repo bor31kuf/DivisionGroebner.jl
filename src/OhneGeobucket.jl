@@ -108,8 +108,6 @@ function NeuPolArray(f,PolAlg;ord=default_ordering(PolAlg))
     return finish(Builder)
 end
 
-lex
-
 
 """
 Der eigentliche Divisionsalgortihmus

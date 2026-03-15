@@ -12,7 +12,7 @@ include("CircularNormal.jl")
 include("CircularSIMDNormalKo.jl")
 
 
-export DIVCirc, DIVArray, PolNeuCirc, PolNeuArray, NeuPolArray, NeuPolCirc, DIVCircC, DIVArrayC, GroebnerCirc, Gewicht, DIVArrayOhneGeoC, DIVArrayOhneGeo, DivRestFam, PolNeuCirc2, NeuPolCirc2, DIVCirc2, DIVCircC2,DivRestFam,DIVCircCKo
+export DIVCirc, DIVArray, PolnewCirc, PolNeuArray, NeuPolArray, newPolCirc, DIVCircC, DIVArrayC, GroebnerCirc, Gewicht, DIVArrayOhneGeoC, DIVArrayOhneGeo, DivRestFam, PolNeuCirc2, NeuPolCirc2, DIVCirc2, DIVCircC2,DivRestFam,DIVCircCKo, add, PolyNomCirc
 
 end
 

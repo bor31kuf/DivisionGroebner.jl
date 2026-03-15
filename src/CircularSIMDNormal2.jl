@@ -205,11 +205,13 @@ function DIVCirc(f::PolyNomCirc{W},G::Vector{PolyNomCirc{W}}) where W
     LTf2K =first(f.Koeffizienten)
     r = PolyNomCirc(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L))
     D = length(G)
+    mh = 1
     while true
         w = false
         for i=1:D
             if sum(LTf2M>=first(G[i].Monome))==W
-                
+                mh+=1
+                println(mh)
                 DIV1 =LTf2M-first(G[i].Monome)
                 DIV2 = -LTf2K/first(G[i].Koeffizienten)
                 L2 = length(G[i].Koeffizienten)
@@ -261,11 +263,12 @@ function DIVCirc(f::PolyNomCirc{W},G::Vector{PolyNomCirc{W}},l) where W
     LTf2K =first(f.Koeffizienten)
     r = PolyNomCirc(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L))
     D = length(G)
+    mh=1
     while true
         w = false
         for i=1:D
             if sum(LTf2M>=first(G[i].Monome))==W && l!=i
-                
+                mh+=1
                 DIV1 =LTf2M-first(G[i].Monome)
                 DIV2 = -LTf2K/first(G[i].Koeffizienten)
                 L2 = length(G[i].Koeffizienten)
@@ -519,7 +522,7 @@ end
 """
 Macht die komplette Division mit Umwandlung davor und danach
 """
-function DIVCircC(f,G,ord::MonomialOrdering=default_ordering(parent(f)))
+function DIVCircC2(f,G,ord::MonomialOrdering=default_ordering(parent(f)))
     f2 = PolNeuCirc(f,ord=ord)
     W = length(gens(parent(f)))+1
     G2 = [PolNeuCirc(G[i],ord=ord) for i=1:length(G)]

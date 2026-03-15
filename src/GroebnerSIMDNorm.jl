@@ -2,13 +2,13 @@
 Berechnet das S-Polynom
 """
 function SPoly(f::PolyNomCirc,g::PolyNomCirc,c) where{W}
-    kgv =  max(first(f.Monome),first(g.Monome))
+    kgv =  max(first(f. monoms),first(g. monoms))
     kgv = Base.setindex(kgv,sum(kgv*c),1)
     
     
-    mf = kgv-first(f.Monome)
-    mg = kgv-first(g.Monome)
-    x = Sub1(f,g,mf,mg,1/first(f.Koeffizienten),-1/first(g.Koeffizienten)) 
+    mf = kgv-first(f. monoms)
+    mg = kgv-first(g. monoms)
+    x = Sub1(f,g,mf,mg,1/first(f.coefficients),-1/first(g.coefficients)) 
 
     return x
 end
@@ -28,13 +28,12 @@ function Buchberger2(G::Vector{PolyNomCirc{W}},c::Vec{W,Int64}) where{W}
             b = Queue[k][2]
             Sij = SPoly(G[a],G[b],c)
             S = DIVCirc(Sij,G)
-            if length(S.Monome)!=0
+            if length(S. monoms)!=0
                 push!(G,S)
                 Queue, Bits = QUEUE(G,Queue,Bits,k)
                 if length(G)==30
                     G=reduce_groebner(G)
-                    println("ja")
-                    println(length(G))
+                    
                     return Buchberger2(G,c)
                 end
             end
@@ -54,12 +53,12 @@ function QUEUE(G::Vector{PolyNomCirc{W}},Pairs,Bits,k) where{W}
         if Bits[i]
             f=G[Pairs[i][1]]
             g=G[Pairs[i][2]]
-            r  = max(first(f.Monome),first(g.Monome))
-            w1 = first(h.Monome)<=r
+            r  = max(first(f. monoms),first(g. monoms))
+            w1 = first(h. monoms)<=r
             w1 = Base.setindex(w1,false,1)
-            w2 = max(first(h.Monome),first(f.Monome)) == r
+            w2 = max(first(h. monoms),first(f. monoms)) == r
             w2 = Base.setindex(w2,false,1)
-            w3 = max(first(h.Monome),first(g.Monome)) == r
+            w3 = max(first(h. monoms),first(g. monoms)) == r
             w3 = Base.setindex(w3,false,1)
             if sum(w1) == W-1 && sum(w2) !=W-1 && sum(w3) != W-1
                 Bits[i] == false
@@ -69,7 +68,7 @@ function QUEUE(G::Vector{PolyNomCirc{W}},Pairs,Bits,k) where{W}
 
     for i=1:length(G)-1
         push!(Pairs,(i,length(G)))
-        w = max(first(G[i].Monome),first(G[length(G)].Monome)) == first(G[i].Monome)+first(G[length(G)].Monome)
+        w = max(first(G[i]. monoms),first(G[length(G)]. monoms)) == first(G[i]. monoms)+first(G[length(G)]. monoms)
         w = Base.setindex(w,false,1)
         if sum(w) == W-1
             push!(Bits,false)
@@ -82,8 +81,8 @@ function QUEUE(G::Vector{PolyNomCirc{W}},Pairs,Bits,k) where{W}
         if Bits[c+i]
             for j=i+1:length(G)-1
                 if Bits[c+j]
-                    r1 = max(first(G[length(G)].Monome),first(G[i].Monome))
-                    r2 = max(first(G[length(G)].Monome),first(G[j].Monome))
+                    r1 = max(first(G[length(G)]. monoms),first(G[i]. monoms))
+                    r2 = max(first(G[length(G)]. monoms),first(G[j]. monoms))
                     w1 = r1 >= r2
                     w2 = r1 < r2
                     w1 = Base.setindex(w1,false,1)
@@ -129,7 +128,7 @@ function my_isgb(G::Vector{PolyNomCirc{W}},c) where{W}
     t = length(G)
     for i = 1:t-1
         for j=1:t
-            if length(DIVCirc(SPoly(G[i],G[j],c),G).Monome) != 0
+            if length(DIVCirc(SPoly(G[i],G[j],c),G). monoms) != 0
                 return false
             end
         end
@@ -149,11 +148,11 @@ function reduce_groebner(G)
         w = true
         while i <= length(G)
             a = DIVCirc(G[i],G,i)
-            if length(a.Monome)==0
+            if length(a. monoms)==0
                 deleteat!(G,i)
                 w = false
                 break
-            elseif G[i].Koeffizienten != a.Koeffizienten
+            elseif G[i].coefficients != a.coefficients
                 w = false
                 G[i]=a
                 i+=1
@@ -173,14 +172,14 @@ function GroebnerCirc(G;ord=default_ordering(parent(G[1])))
     
     T = Vector{PolyNomCirc{W}}()
     for i=1:length(G)
-        push!(T,PolNeuCirc(G[i],ord=ord))
+        push!(T,PolnewCirc(G[i],ord=ord))
     end
     c = Gewicht(parent(G[1]),ord)
     T=GroebnerTCirc(T,c)
     
     L =MPolyRingElem[]
     for i=1:length(T)
-        push!(L,NeuPolCirc(T[i],parent(G[1]),ord=ord))
+        push!(L,newPolCirc(T[i],parent(G[1]),ord=ord))
     end
     L = Oscar.IdealGens(L)
     return L
