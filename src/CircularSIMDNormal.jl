@@ -330,20 +330,17 @@ function add(f::PolyNomCirc{W},g::PolyNomCirc{W},DIV1,DIV2)where{W}
     A =f.coefficients.last
     t = 0
     t2 = f.coefficients.buffer
-    u = 0
-    #println(length(t2))
+
     while k <=lf && j <= lg
         t+=1
         m = g.monoms[j]+DIV1
         x = cmp(f.monoms[k],g.monoms[j]+DIV1)
         #potentiell aufpassen
         if x == 0
-            #println(" ")
-            #println(g.coefficients[j]*DIV2)
+           
             push!(f.monoms,g.monoms[j]+DIV1)
             Nemo.set!(t2[f.monoms.last],g.coefficients[j])
             mul!(t2[f.monoms.last],DIV2)
-            #println(f.coefficients.buffer[f.coefficients.last])
                
             j+=1
         elseif x==2
@@ -421,16 +418,15 @@ function add(f::PolyNomCirc{W},g::PolyNomCirc{W})where{W}
  
         if x == 0
             push!(f.monoms,g.monoms[j])
-            push!(f.coefficients,g.coefficients[j])
+            Nemo.set!(f.coefficients.buffer[f.monoms.last],g.coefficients[j])
             j+=1
         elseif x==2
             D  = f.coefficients[k]
             add!(D,g.coefficients[j])   
             if iszero(D) == false
-                push!(f.coefficients,D)
+                Nemo.set!(f.coefficients.buffer[f.monoms.last],D)
                 push!(f.monoms,f.monoms[k])
             else
-                f.coefficients.n +=1
                 f.monoms.n +=1
                 t-=1
             end
@@ -438,16 +434,15 @@ function add(f::PolyNomCirc{W},g::PolyNomCirc{W})where{W}
             j+=1
         else
             push!(f.monoms,f.monoms[k])
-            push!(f.coefficients,f.coefficients[k])
+            Nemo.set!(f.coefficients.buffer[f.monoms.last],f.coefficients[k])
             k+=1
         end
-        f.coefficients.n -=1
+        
         f.monoms.n -=1   
     end
     while j <=lg
         push!(f.monoms,g.monoms[j])
-        push!(f.coefficients,g.coefficients[j])
-        f.coefficients.n -=1
+        Nemo.set!(f.coefficients.buffer[f.monoms.last],g.coefficients[j])
         f.monoms.n -=1
         t+=1
         j+=1
@@ -455,8 +450,7 @@ function add(f::PolyNomCirc{W},g::PolyNomCirc{W})where{W}
 
     while k <=lf
         push!(f.monoms,f.monoms[k])
-        push!(f.coefficients,f.coefficients[k])
-        f.coefficients.n -=1
+        Nemo.set!(f.coefficients.buffer[f.monoms.last],f.coefficients[k])
         f.monoms.n -=1
         t+=1
         k+=1
@@ -469,6 +463,7 @@ function add(f::PolyNomCirc{W},g::PolyNomCirc{W})where{W}
         f.coefficients.first = 1
     end
     f.monoms.n  = t
+    f.coefficients.last = f.monoms.last
     f.coefficients.n = t
     return 
     
