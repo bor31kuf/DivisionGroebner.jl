@@ -1,8 +1,6 @@
 """
 PolyNome werden mit einem Arrray gespeichert.
 Innerhalb der Liste wird ein SIMD Vector bebutzt zur parallelen Operation auf dem Vector.
-
-Um nicht immer wieder das potentielle Gewicht des PolyNoms zu berchnen wird es mit gespeichert. 
 """ 
 mutable struct PolyNomArray{W}
     Monome::Vector{Vec{W,Int64}}
@@ -159,7 +157,7 @@ end
 Funktion für den Vergleich von Monomen. 
 """
 function cmp(a::Vec{W,Int64},b::Vec{W,Int64}) where{W}
-    for i in 1:W
+    @inbounds for i in 1:W
         if a[i] < b[i]
             return 0
         elseif a[i] > b[i]
@@ -212,10 +210,12 @@ function DIVArray(f::PolyNomArray{W},G::Vector{PolyNomArray{W}}) where W
     LTf2 = Leitterm(f2)
     r = PolyNomArray(Vector{Vec{W,Int64}}(),Vector{FieldElem}())
     D = length(G)
+
     while length(LTf2.Monome) != 0
         w = false
         for i=1:D
-            if sum((first(LTf2.Monome)>=first(G[i].Monome)))==W
+
+            if sum(first(LTf2.Monome)>=first(G[i].Monome)) == W
             
                 DIV1 = first(LTf2.Monome)-first(G[i].Monome)
                 DIV2 = -first(LTf2.Koeffizienten)/first(G[i].Koeffizienten)
@@ -314,7 +314,6 @@ function add(f::PolyNomArray{W},g::PolyNomArray{W})where{W}
     lg = length(g.Monome)
     k= 1
     j= 1
-    #f2 = deepcopy(f)
     A = Vector{Vec{W,Int64}}()
     C = Vector{FieldElem}()
     while k <=lf && j <= lg
