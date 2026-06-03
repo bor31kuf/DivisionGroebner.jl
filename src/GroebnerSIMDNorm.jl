@@ -1,9 +1,9 @@
 """
 Berechnet das S-Polynom
 """
-function SPoly(f::PolyNomCirc{W},g::PolyNomCirc{W},c) where{W}
+function SPoly(f::PolyNomCirc12{W,T},g::PolyNomCirc12{W,T}) where{W,T}
     kgv =  max(first(f.monoms),first(g.monoms))
-    kgv = Base.setindex(kgv,sum(kgv*c),1)
+    #kgv = Base.setindex(kgv,sum(kgv*c),1)
     
     mf = kgv-first(f.monoms)
     mg = kgv-first(g.monoms)
@@ -15,7 +15,7 @@ end
 """
 Der Buchberger Algorithmus
 """
-function Buchberger2(G::Vector{PolyNomCirc{W}},c::Vec{W,Int64},PolAlg) where{W}
+function Buchberger3(G::Vector{PolyNomCirc12{W,T}},PolAlg) where{W,T}
     L = length(G)
     Queue = pairs(L)
     Bits = trues(Int(L*(L-1)/2))
@@ -25,10 +25,20 @@ function Buchberger2(G::Vector{PolyNomCirc{W}},c::Vec{W,Int64},PolAlg) where{W}
         
             a = Queue[k][1]
             b = Queue[k][2]
-            Sij = SPoly(G[a],G[b],c)
-            S = DIVCirc4(Sij,G)
+            Sij = SPoly(G[a],G[b])
+      
+            S = DIVCirc12(Sij,G)
             
             if length(S.monoms)!=0
+                ##
+                t1 =gcd([S.coefficients.buffer[i].num for i=1:length(S.coefficients.buffer)])
+                t2 =gcd([S.coefficients.buffer[i].den for i=1:length(S.coefficients.buffer)])
+                t = QQ(t2,t1)
+                S.coefficients.buffer = [mul!(S.coefficients.buffer[i],t) for i=1:length(S.coefficients.buffer)]
+                println(S)
+                if lenght(G) == 20
+                    return
+                end
                 push!(G,S)
                 Queue, Bits = QUEUE(G,Queue,Bits,k)
                 
@@ -42,7 +52,7 @@ end
 """
 Zeigt auf welche Polynom paare überhaupt in Betracht kommen. 
 """
-function QUEUE(G::Vector{PolyNomCirc{W}},Pairs,Bits,k) where{W}
+function QUEUE(G::Vector{PolyNomCirc12{W,T}},Pairs,Bits,k) where{W,T}
     h = G[length(G)]
     c = length(Bits)
     for i=k+1:length(Bits)
@@ -51,12 +61,11 @@ function QUEUE(G::Vector{PolyNomCirc{W}},Pairs,Bits,k) where{W}
             g=G[Pairs[i][2]]
             r  = max(first(f.monoms),first(g.monoms))
             w1 = first(h.monoms)<=r
-            w1 = Base.setindex(w1,false,1)
+            #w1 = Base.setindex(w1,false,1)
             w2 = max(first(h.monoms),first(f.monoms)) == r
-            w2 = Base.setindex(w2,false,1)
+            #w2 = Base.setindex(w2,false,1)
             w3 = max(first(h.monoms),first(g.monoms)) == r
-            w3 = Base.setindex(w3,false,1)
-            if sum(w1) == W-1 && sum(w2) !=W-1 && sum(w3) != W-1
+            if sum(w1) == W && sum(w2) !=W && sum(w3) != W #mmmh W-1
                 Bits[i] == false
             end
         end
@@ -65,8 +74,7 @@ function QUEUE(G::Vector{PolyNomCirc{W}},Pairs,Bits,k) where{W}
     for i=1:length(G)-1
         push!(Pairs,(i,length(G)))
         w = max(first(G[i].monoms),first(G[length(G)].monoms)) == first(G[i].monoms)+first(G[length(G)].monoms)
-        w = Base.setindex(w,false,1)
-        if sum(w) == W-1
+        if sum(w) == W
             push!(Bits,false)
         else
             push!(Bits,true)
@@ -81,12 +89,10 @@ function QUEUE(G::Vector{PolyNomCirc{W}},Pairs,Bits,k) where{W}
                     r2 = max(first(G[length(G)].monoms),first(G[j].monoms))
                     w1 = r1 >= r2
                     w2 = r1 < r2
-                    w1 = Base.setindex(w1,false,1)
-                    w2 = Base.setindex(w2,false,1)
-                    if sum(w1)==W-1
+                    if sum(w1)==W
                         Bits[c+i] =false
                         break
-                    elseif sum(w2) == W-1
+                    elseif sum(w2) == W
                         Bits[c+j] = false
                     end
                 end
@@ -110,9 +116,10 @@ function pairs(n::Int)::Vector{Tuple{Int,Int}}
 end
 
 
-function GroebnerTCirc(G,c,PolAlg)
-    X=  Buchberger2(G,c,PolAlg)
-    X = reduce_groebner(X)
+function GroebnerTCirc(G,PolAlg)
+    X=  Buchberger3(G,PolAlg)
+    #println(my_isgb(G))
+    #X = reduce_groebner(X)
     return X
   
 end
@@ -120,11 +127,11 @@ end
 """
 üpberprüft ob etwas ne Gröbnerbasis ist.
 """
-function my_isgb(G::Vector{PolyNomCirc{W}},c) where{W}
+function my_isgb(G::Vector{PolyNomCirc12{W,T}}) where{W,T}
     t = length(G)
     for i = 1:t-1
         for j=1:t
-            if length(DIVCirc(SPoly(G[i],G[j],c),G).monoms) != 0
+            if length(DIVCirc12(SPoly(G[i],G[j]),G).monoms) != 0
                 return false
             end
         end
@@ -142,8 +149,8 @@ function reduce_groebner(G)
     L  = length(G)
     for a=1:L
         w = true
-        while i <= length(G)
-            a = DIVCirc4(G[i],G,i)
+        while i <= length(G)DIVCirc
+            a = DIVCirc12(G[i],G,i)
             if length(a.monoms)==0
                 deleteat!(G,i)
                 w = false
@@ -164,18 +171,17 @@ end
 Komplette funktion zur Berechnung der Gröbnerbasis
 """
 function GroebnerCirc(G;ord=default_ordering(parent(G[1])))
-    W =length(gens(parent(G[1])))+1
+    W =length(gens(parent(G[1])))
     
-    T = Vector{PolyNomCirc{W}}()
+    T = Vector{PolyNomCirc12{W,Int32}}()
     for i=1:length(G)
-        push!(T,PolnewCirc4(G[i],ord=ord))
+        push!(T,PolnewCirc12(G[i],Int32,ord=ord))
     end
-    c = Gewicht(parent(G[1]),ord)
-    T=GroebnerTCirc(T,c,parent(G[1]))
+    T=GroebnerTCirc(T,parent(G[1]))
     
     L =MPolyRingElem[]
     for i=1:length(T)
-        push!(L,newPolCirc4(T[i],parent(G[1]),ord=ord))
+        push!(L,newPolCirc12(T[i],parent(G[1]),ord=ord))
     end
     L = Oscar.IdealGens(L)
     return L

@@ -145,9 +145,9 @@ function PolNewCircW(f;ord::MonomialOrdering=default_ordering(parent(f)))
     W= length(gens(parent(f)))
     
     if typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:lex}
-        D = PolyNomCircW(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L),CircularDeque{ZZRingElem})(L) 
+        D = PolyNomCircW(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L),CircularDeque{ZZRingElem}(L))
         for i=1:length(A)
-            push!(D.monoms,Vec{W,Int64}((B[i]...)))
+            push!(D.monoms,Vec{W,Int64}(Tuple(B[i])))
             push!(D.coefficients,A[i])
             push!(D.weight,ZZ(0))
         end
@@ -182,7 +182,7 @@ function PolNewCircW(f;ord::MonomialOrdering=default_ordering(parent(f)))
     elseif typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:degrevlex}
         D = PolyNomCircW(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L),CircularDeque{ZZRingElem}(L)) 
         for i=1:length(A)
-            push!(D.monoms,Vec{W,Int64}(Tuple(reverse(B[i])))
+            push!(D.monoms,Vec{W,Int64}(Tuple(reverse(B[i]))))
             push!(D.coefficients,A[i])
             push!(D.weight,ZZ(sum(B[i][j] for j=1:W)))
         end
