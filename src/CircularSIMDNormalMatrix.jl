@@ -1,4 +1,3 @@
-
 """
 Polynoimals are saved in a Circular Deque for fast deleting/inserting at the fron oft the list.
 In the Circular Deque there are SIMD-vetors for fast parallel operationson the vector.
@@ -6,10 +5,11 @@ In the Circular Deque there are SIMD-vetors for fast parallel operationson the v
 The potential weight of the Polynom is also saved.
 """
 
-mutable struct PolyNomCircW{W}
-    monoms::CircularDeque{Vec{W,Int64}}
-    coefficients::CircularDeque{FieldElem}
-    weight::CircularDeque{ZZRingElem}
+mutable struct PolyNomCircMatrix{W,T,Z,Y}
+    monoms::CircularDeque{Vec{W,Z}}
+    coefficients::CircularDeque{T}
+    weight::CircularDeque{Vec{W,Y}}
+    #Maybe Vektor hier
 end
 
 
@@ -17,53 +17,59 @@ end
 We are using a geobucket structure, for fast addition of polynomials.
 
 """
-struct geobucketpol1W{W}
-    bucket::Vector{PolyNomCircW{W}}
+struct geobucketpolMatrix{W,Z,Y}
+    bucket::Vector{PolyNomCircMatrix{W,QQFieldElem,Z,Y}}
 end
 
 
 """
 The addition in a geobucket
 """
-function addgeobucketW(B::geobucketpol1W{W},f::PolyNomCircW,DIV1 = Vec{W,Int64}(ntuple(i-> 0,W)),DIV2 =QQFieldElem(1),weight = ZZ(0)) where{W}
+function addgeobucketMatrix(B::geobucketpolMatrix{W,Z,Y},f::PolyNomCircMatrix{W,QQFieldElem,Z,Y},DIV1 = Vec{W,Z}(ntuple(i-> 0,W)),DIV2 =QQFieldElem(1),DIV3=  Vec{W,Y}(ntuple(i-> 0,W))) where{W,Z,Y}
     log = cld(64-leading_zeros(length(f.coefficients)),2)
     i=max(1,log)
     m = length(B.bucket)
     if i <= m
-        add(B.bucket[i],f,DIV1,DIV2,weight)
+        w1, w2 = addMatrix(B.bucket[i],f,DIV1,DIV2,DIV3)
+        if w1 == false
+            return B,false,w2
+        end
         while i <=m && length(B.bucket[i].coefficients) > 4^i
             if i!=m
-                add(B.bucket[i+1],B.bucket[i])
+                addMatrix(B.bucket[i+1],B.bucket[i])
                 empty!(B.bucket[i].coefficients)
                 empty!(B.bucket[i].monoms)
                 empty!(B.bucket[i].weight)
             else
                 v = [QQFieldElem(Val(:raw)) for z = 1:2*4^(m+1)]
-                push!(B.bucket,PolyNomCircW(CircularDeque{Vec{W,Int64}}(2*4^(m+1)),CircularDeque{FieldElem}(2*4^(m+1)),CircularDeque{ZZRingElme}(2*4^(m+1))))
+                push!(B.bucket,PolyNomCircMatrix(CircularDeque{Vec{W,Z}}(2*4^(m+1)),CircularDeque{QQFieldElem}(2*4^(m+1)),CircularDeque{Vec{W,Y}}(2*4^(m+1))))
                 B.bucket[m+1].coefficients.buffer = v
-                add(B.bucket[m+1],B.bucket[m])
+                addMatrix(B.bucket[m+1],B.bucket[m])
                 empty!(B.bucket[m].coefficients)
                 empty!(B.bucket[m].monoms)
                 empty!(B.bucket[m].weight)
             end
             i+=1
         end
-        return B
+        return B,true,true
     end
     for t=m:max(m,i)-1
         v = [QQFieldElem(Val(:raw)) for z = 1:2*4^(t+1)]
-        push!(B.bucket, PolyNomCircW(CircularDeque{Vec{W,Int64}}(2*4^(t+1)),CircularDeque{FieldElem}(2*4^(t+1)),CircularDeque{ZZRingElem}(2*4^(t+1))))
+        push!(B.bucket, PolyNomCircMatrix(CircularDeque{Vec{W,Z}}(2*4^(t+1)),CircularDeque{QQFieldElem}(2*4^(t+1)),CircularDeque{Vec{W,Y}}(2*4^(t+1))))
         B.bucket[t+1].coefficients.buffer = v
     end
-    add(B.bucket[i],f,DIV1,DIV2,weight) 
-    return B
+    w1,w2 = addMatrix(B.bucket[i],f,DIV1,DIV2,DIV3)
+    if w1 == false
+        return B,false,w2
+    end 
+    return B,true,w2
 end
 
 
 """
 The extraction of the leading term in average log(size of B)
 """
-function leading_term(B::geobucketpol1W{W},LTf2K) where{W}
+function leading_term(B::geobucketpolMatrix{W,Z,Y},LTf2K) where{W,Z,Y}
     m= length(B.bucket)
     j= 0
     while true
@@ -74,12 +80,11 @@ function leading_term(B::geobucketpol1W{W},LTf2K) where{W}
                 if j == 0
                     j=i
                 else
-                    wt = cmp(first(B.bucket[i].monoms),first(B.bucket[j].monoms),first(B.bucket[i].weight),first(B.bucket[j].weight))
+                    wt = cmp(first(B.bucket[i].weight),first(B.bucket[j].weight))
                     if wt==1
                         j=i
                     elseif wt==2
                         add!(B.bucket[j].coefficients.buffer[B.bucket[j].coefficients.first],first(B.bucket[i].coefficients))
-                        B.bucket[j].weight.buffer[B.bucket[j].weight.first] +=first(B.bucket[i].weight)
                         if iszero(first(B.bucket[j].coefficients))==false
                             popfirst2!(B.bucket[i].coefficients)
                             popfirst!(B.bucket[i].monoms)
@@ -87,10 +92,10 @@ function leading_term(B::geobucketpol1W{W},LTf2K) where{W}
                         else
                             popfirst2!(B.bucket[i].coefficients)
                             popfirst!(B.bucket[i].monoms)
+                            popfirst!(B.bucket[i].weight)
                             popfirst2!(B.bucket[j].coefficients)
                             popfirst!(B.bucket[j].monoms)
-                            popfirst!(B.bucket[i].weight)
-                            popfirst!(B.bucket[j].weight)
+                            popfirst!(B.bucket[j].weight)                             
                             w = false
                             break
                         end
@@ -103,7 +108,7 @@ function leading_term(B::geobucketpol1W{W},LTf2K) where{W}
         end
     end
     if j== 0
-        return 0,QQ(0), ZZ(0)
+        return  Vec{W,Z}(ntuple(i-> 0,W)),QQ(0),Vec{W,Y}(ntuple(i-> 0,W))
     end
     
     Nemo.set!(LTf2K,popfirst3!(B.bucket[j].coefficients))
@@ -125,80 +130,33 @@ function popfirst2!(D)
     D.first = ifelse(tmp > D.capacity, 1, tmp)
 end
 
-function push2!(D,a)
-    D.n += 1
-    tmp = D.last + 1
-    D.last = ifelse(tmp > D.capacity, 1, tmp)  # wraparound
-    Nemo.set!(D.buffer[D.last],a)
-    return D
-end
+
 
 """
 A conversion of the Oscar polynomial type to this new one.
 
-supported are: lex,wdeglex,deglex,degrevlex,wdegrevlex
+supported are: Matrix,wdegMatrix,degMatrix,degrevMatrix,wdegrevMatrix
 """
-function PolNewCircW(f;ord::MonomialOrdering=default_ordering(parent(f)))
+function PolNewCircMatrix(f,Z::Type,Y::Type,ord::MonomialOrdering=default_ordering(parent(f)))
     A = collect(coefficients(f,ordering=ord))
     B = collect(exponents(f,ordering=ord))
     L = length(B)
-    W= length(gens(parent(f)))
-    
-    if typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:lex}
-        D = PolyNomCircW(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L),CircularDeque{ZZRingElem}(L)) 
-        for i=1:length(A)
-            push!(D.monoms,Vec{W,Int64}((B[i]...)))
-            push!(D.coefficients,A[i])
-            push!(D.weight,ZZ(0))
-        end
-        return D
+    W= length(gens(parent(f)))  
+    D1 = CircularDeque{Vec{W,Z}}(L)
+    D2 = CircularDeque{QQFieldElem}(L)
+    D3 = CircularDeque{Vec{W,Y}}(L)
+    for i=1:length(A)
+        push!(D1,convert(Vec{W, Z}, vload(Vec{W, Int64}, B[i], 1)))
+        push!(D2,A[i])
+        push!(D3,convert(Vec{W, Y}, vload(Vec{W, Int64}, Int.(B[i]*ord.o.matrix), 1)))
     end
-    if typeof(ord.o) ==Oscar.Orderings.WSymbOrdering{:wdeglex}
-        D = PolyNomCircW(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L),CircularDeque{ZZRingElem}(L)) 
-        c = ord.o.weights
-        for i=1:length(A)
-            push!(D.monoms,Vec{W,Int64}(Tuple(B[i])))
-            push!(D.coefficients,A[i])
-            push!(D.weight,ZZ(sum(c[j]*B[i][j] for j=1:W)))
-        end
-        return D
-    elseif typeof(ord.o) ==Oscar.Orderings.WSymbOrdering{:wdegrevlex}
-        D = PolyNomCircW(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L),CircularDeque{ZZRingElem}(L)) 
-        c = ord.o.weights
-        for i=1:length(A)
-            push!(D.monoms,Vec{W,Int64}(Tuple(reverse(B[i]))))
-            push!(D.coefficients,A[i])
-            push!(D.weight,ZZ(sum(c[j]*B[i][j] for j=1:W)))
-        end
-        return D
-    elseif typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:deglex}
-        D = PolyNomCircW(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L),CircularDeque{ZZRingElem}(L)) 
-        for i=1:length(A)
-            push!(D.monoms,Vec{W,Int64}(Tuple(B[i])))
-            push!(D.coefficients,A[i])
-            push!(D.weight,ZZ(sum(B[i][j] for j=1:W)))
-        end
-        return D
-    elseif typeof(ord.o) ==Oscar.Orderings.SymbOrdering{:degrevlex}
-        D = PolyNomCircW(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L),CircularDeque{ZZRingElem}(L)) 
-        for i=1:length(A)
-            push!(D.monoms,Vec{W,Int64}(Tuple(reverse(B[i]))))
-            push!(D.coefficients,A[i])
-            push!(D.weight,ZZ(sum(B[i][j] for j=1:W)))
-        end
-        return D
-    else
-        throw(ArgumentError("Ordnung nicht unterstützt"))
-    end
+    return PolyNomCircMatrix(D1,D2,D3)
 end  
 
 """
 function for comparing two monomial
 """
-function cmp(a::Vec{W,Int64},b::Vec{W,Int64},a2::ZZRingElem,b2::ZZRingElem) where{W}
-    if a2 != b2
-        return a2 > b2
-    end
+function cmp(a::Vec{W,Z},b::Vec{W,Z}) where{W,Z}
     @inbounds for i in 1:W
         if a[i] != b[i]
             return a[i] > b[i]
@@ -211,71 +169,82 @@ end
 """
 function for conversion of this new polynomial type to the oscar one
 """
-function newPolCircW(f,PolAlg;ord=default_ordering(PolAlg))
+function newPolCircMatrix(f,PolAlg;ord=default_ordering(PolAlg))
     a=zero(PolAlg)
     k = length(f.monoms)
     Builder = MPolyBuildCtx(PolAlg)
-    if typeof(ord.o) == Oscar.Orderings.WSymbOrdering{:wdegrevlex} ||  typeof(ord.o) == Oscar.Orderings.SymbOrdering{:degrevlex}
-        for i=1:k
-            push_term!(Builder,f.coefficients[i],reverse(collect(Tuple(f.monoms[i]))[1:end]))
-        end
-    elseif typeof(ord.o) == Oscar.Orderings.SymbOrdering{:deglex} || typeof(ord.o) == Oscar.Orderings.SymbOrdering{:lex}|| typeof(ord.o) == Oscar.Orderings.WSymbOrdering{:wdeglex}  
-        for i=1:k
-            push_term!(Builder,f.coefficients[i],collect(Tuple(f.monoms[i]))[1:end])
-        end
+    for i=1:k
+        push_term!(Builder,f.coefficients[i],Int64.(collect(Tuple(f.monoms[i]))[1:end]))
     end
+   
     return finish(Builder)
 end
 
 
-"""
-The division algrithm
-"""
-function DIVCircW(f::PolyNomCircW{W},G::Vector{PolyNomCircW{W}}) where W
+function DIVCircMatrix(f::PolyNomCircMatrix{W,QQFieldElem,Z,Y},G::Vector{PolyNomCircMatrix{W,QQFieldElem,Z,Y}}) where {W,Z,Y}
     L = length(f.coefficients)
     if L==0
         return f
     end
-    f2 = geobucketpol1W([PolyNomCircW(CircularDeque{Vec{W,Int64}}(8),CircularDeque{FieldElem}(8),CircularDeque{ZZRingElem}(8))])
+    f2 = geobucketpolMatrix([PolyNomCircMatrix(CircularDeque{Vec{W,Z}}(8),CircularDeque{QQFieldElem}(8),CircularDeque{Vec{W,Y}}(8))])
     f2.bucket[1].coefficients.buffer = [QQFieldElem(Val(:raw)) for z=1:8]
-    f2 =addgeobucketW(f2,f)
-    #return f
+    
+    f2 =addgeobucketMatrix(f2,f)[1]
     LTf2M= first(f.monoms)
     LTf2K =first(f.coefficients)
-    r = PolyNomCircW(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L),CircularDeque{ZZRingElem}(L))
+    LTf2weight = first(f.weight)
+    r = PolyNomCircMatrix(CircularDeque{Vec{W,Z}}(L),CircularDeque{QQFieldElem}(L),CircularDeque{Vec{W,Y}}(L))
     r.coefficients.buffer = [QQFieldElem(Val(:raw)) for z=1:L]
+
+    r,w,w2,LTf2M,LTf2K,LTf2weight = CircCirc(LTf2M,LTf2K,LTf2weight,f2,G,r)
+   
+    if w == true
+        return r
+    else
+        return widenProblem(LTf2M,LTf2K,LTf2weight,f2,G,r,w2)
+    end
+end
+
+"""
+The division algrithm
+"""
+function CircCirc(LTf2M::Vec{W,Z},LTf2K::QQFieldElem,LTf2weight::Vec{W,Y},f2::geobucketpolMatrix{W,Z,Y},G::Vector{PolyNomCircMatrix{W,QQFieldElem,Z,Y}},r::PolyNomCircMatrix{W,QQFieldElem,Z,Y}) where {W,Z,Y}
     D = length(G)
     DIV2 = QQFieldElem(Val(:raw))
-    weight = first(f.weight)
+    DIV3 = Z(0)
     while true
        
         w = false
         for i=1:D
-            if sum(LTf2M>=first(G[i].monoms))==W
+            if all(LTf2M>=first(G[i].monoms))
                 
                 DIV1 =LTf2M-first(G[i].monoms)
-                weight2 = weight-first(G[i].weight)
+                DIV3 = LTf2weight-first(G[i].weight)
                 divexact!(DIV2,LTf2K,first(G[i].coefficients))
                 neg!(DIV2)
                 L2 = length(G[i].coefficients)
                 w = true
+                
                 if L2!=1
-                    f2= addgeobucketW(f2,G[i],DIV1,DIV2,weight2)
+                    f2, w2,w3 =addgeobucketMatrix(f2,G[i],DIV1,DIV2,DIV3)
+                    if w2==false
+                        return r, false,w3, LTf2M,LTf2K,LTf2weight
+                    end
                 end
             
-                LTf2M,LTf2K, weight = leading_term(f2,LTf2K)
+                LTf2M,LTf2K,LTf2weight = leading_term(f2,LTf2K)
                 if iszero(LTf2K)
-                    return r
+                    return r, true,true, LTf2M,LTf2K,LTf2weight
                 end
                 break
         
             end
         end
         if w == false
-            r= pushing(r,LTf2M,LTf2K,weight)
-            LTf2M,LTf2K, weight = leading_term(f2,LTf2K)
+            r= pushing(r,LTf2M,LTf2K,LTf2weight)
+            LTf2M,LTf2K,LTf2weight = leading_term(f2,LTf2K)
             if iszero(LTf2K)
-                return r
+                return r, true,true, LTf2M,LTf2K,LTf2weight
             end
         end
     end
@@ -286,35 +255,39 @@ is ignoring an element of G
 """
 
 
+
+
 """
 Because we have a CircularDeque which is fixed in size we have sometimes copy it in a bigger CircularDeque
 """
-function pushing(r::PolyNomCircW{W},LTf2M,LTf2K,weight) where{W}
+function pushing(r::PolyNomCircMatrix{W,QQFieldElem,Z,Y},LTf2M,LTf2K,LTf2weight) where{W,Z,Y}
     if capacity(r.coefficients) > length(r.coefficients)
-        push!(r.monoms,LTf2M)
-        
+        push!(r.monoms,LTf2M)        
+        push!(r.weight,LTf2weight)
         Nemo.set!(r.coefficients.buffer[r.monoms.n],LTf2K)
         r.coefficients.last +=1
         r.coefficients.n +=1
-        push!(r.weight,weight)
+   
         return r
     else
-        r21 = CircularDeque{Vec{W,Int64}}(2*capacity(r.monoms))
-        r22 = CircularDeque{FieldElem}(2*capacity(r.monoms))
-        r23 = CircularDeque{ZZRingElen}(2*capacity(r.monoms))
+        r21 = CircularDeque{Vec{W,Z}}(2*capacity(r.monoms))
+        r22 = CircularDeque{QQFieldElem}(2*capacity(r.monoms))
+        r23 = CircularDeque{Vec{W,Y}}(2*capacity(r.monoms))
+        r22.buffer = [QQFieldElem(Val(:raw)) for z=1:2*capacity(r.monoms)]
         for i=1:length(r.coefficients)
             push!(r21,r.monoms[i])
-            push!(r22,r.coefficients[i])
-            push!(r23,r.weight[i]) 
+            push!(r22,r.coefficients[i]) 
+            push!(r23,r.weight[i])
         end
         push!(r21,LTf2M)
-        push!(r23,weight)
-        Nemo.set!(r22.buffer[r.monoms.n],LTf2K)
+        push!(r23,LTf2weight)
+        Nemo.set!(r22.buffer[r21.n],LTf2K)
         r22.last +=1
         r22.n +=1
+     
     end
     
-    return PolyNomCircW(r21,r22,r23)
+    return PolyNomCircMatrix(r21,r22,r23)
 end
 
 
@@ -324,7 +297,7 @@ Addition zweier monoms mit Zusatzinfos
 so ist das eigentliche Addition f+g*(DIV1,DIV2)
 DIV1 ist das Monom, DIV2 der Koeffizient
 """
-function add(f::PolyNomCircW{W},g::PolyNomCircW{W},DIV1,DIV2,weight)where{W}
+function addMatrix(f::PolyNomCircMatrix{W,QQFieldElem,Z,Y},g::PolyNomCircMatrix{W,QQFieldElem,Z,Y},DIV1,DIV2,DIV3)where{W,Z,Y}
     lf = length(f.coefficients)
     lg = length(g.coefficients)
     k= 1
@@ -333,14 +306,29 @@ function add(f::PolyNomCircW{W},g::PolyNomCircW{W},DIV1,DIV2,weight)where{W}
     t = 0
     t2 = f.coefficients.buffer
     B = f.monoms.first
+
+    for i=2:g.monoms.n
+        if any(g.monoms[i]+DIV1  < 0)
+           
+            return false, true
+        end
+    end
+    for i=2:g.monoms.n
+        if any(g.weight[i]+DIV3  < 0)
+            
+            return false, false
+          
+        end
+    end
+    x = 0
     while k <=lf && j <= lg
         t+=1
-        x = cmp(f.monoms[k],g.monoms[j]+DIV1,f.weight[k],g.weight[j]+weight)
+        x =cmp(f.weight[k],g.weight[j]+DIV3)
         #potentiell aufpassen
         if x == 0
            
             push!(f.monoms,g.monoms[j]+DIV1)
-            push!(f.weight,g.weight[j]+weight)
+            push!(f.weight,g.weight[j]+DIV3)
             Nemo.set!(t2[f.monoms.last],g.coefficients[j])
             mul!(t2[f.monoms.last],DIV2)
                
@@ -370,20 +358,17 @@ function add(f::PolyNomCircW{W},g::PolyNomCircW{W},DIV1,DIV2,weight)where{W}
             o = f.coefficients.buffer[f.monoms.last]
             f.coefficients.buffer[f.monoms.last] = f.coefficients[k]
             x = ifelse(k-1+B > f.monoms.capacity,k-1+B-f.monoms.capacity,k-1+B)
-            
             f.coefficients.buffer[x] =  o
             k+=1
         end
-        
-        f.monoms.n -=1
-        f.weight.n -=1   
+        f.weight.n -=1
+        f.monoms.n -=1   
     end
     while j <=lg
         push!(f.monoms,g.monoms[j]+DIV1)
-        push!(f.weight,g.weight[j]+weight)
+        push!(f.weight,g.weight[j]+DIV3)
         Nemo.set!(t2[f.monoms.last],g.coefficients[j])
         mul!(t2[f.monoms.last],DIV2)
-        
         f.monoms.n -=1
         f.weight.n -=1
         t+=1
@@ -404,11 +389,11 @@ function add(f::PolyNomCircW{W},g::PolyNomCircW{W},DIV1,DIV2,weight)where{W}
     end
     if A+1 <= f.coefficients.capacity
         f.monoms.first = A+1
-        f.coefficients.first = A+1
-        f.weight.first = A+1 
+        f.weight.first = A+1
+        f.coefficients.first = A+1 
     else
+        f.weight.first =1
         f.monoms.first = 1
-        f.weight.first= 1
         f.coefficients.first = 1
     end
     f.monoms.n  = t
@@ -416,14 +401,67 @@ function add(f::PolyNomCircW{W},g::PolyNomCircW{W},DIV1,DIV2,weight)where{W}
     f.coefficients.n = t
     f.coefficients.last = f.monoms.last
     f.coefficients.buffer = t2
-    return 
+    return true, true
+    
+end
+
+
+function Sub1(f::PolyNomCircMatrix{W,QQFieldElem,T,Y},g::PolyNomCircMatrix{W,QQFieldElem,T,Y},DIV1::Vec{W,T},DIV3::Vec{W,T},DIV2::QQFieldElem,DIV4::QQFieldElem)where{W,T,Y}
+    lf = length(f.coefficients)
+    lg = length(g.coefficients)
+    k = 1
+    j = 1
+    A = CircularDeque{Vec{W,T}}(lf+lg)
+    B = CircularDeque{QQFieldElem}(lf+lg)
+    v =  [QQFieldElem(Val(:raw)) for z = 1:(lf+lg)]
+    B.buffer = v 
+
+    while k <=lf && j <= lg
+        x = cmp(f.monoms[k]+DIV1,g.monoms[j]+DIV3)
+        #potentiell aufpassen
+        if x == 0
+            push!(A,g.monoms[j]+DIV3)
+            mul!(B.buffer[A.last],g.coefficients[j],DIV4)
+               
+            j+=1
+        elseif x==2
+            if iszero(f.coefficients[k]*DIV2+DIV4*g.coefficients[j]) == false
+                push!(A,g.monoms[j]+DIV3)
+                B.buffer[A.last] = f.coefficients[k]*DIV2+DIV4*g.coefficients[j]     
+            end
+ 
+            k+=1
+            j+=1
+        else
+            push!(A,f.monoms[k]+DIV1)
+            mul!(B.buffer[A.last],f.coefficients[k],DIV2)
+            k+=1
+        end
+          
+    end
+    while j <=lg
+        push!(A,g.monoms[j]+DIV3)
+        mul!(B.buffer[A.last],g.coefficients[j],DIV4)
+
+        j+=1
+    end
+
+    while k <=lf
+        push!(A,f.monoms[k]+DIV1)
+        mul!(B.buffer[A.last],f.coefficients[k],DIV2)
+        k+=1
+    end
+    B.n = A.n
+    B.last =A.last
+    B.first = A.first
+    return PolyNomCircMatrix{W,QQFieldElem,T}(A,B)
     
 end
 
 """
 Addition zweier Polynome
 """
-function add(f::PolyNomCircW{W},g::PolyNomCircW{W})where{W}
+function addMatrix(f::PolyNomCircMatrix{W,QQFieldElem,Z,Y},g::PolyNomCircMatrix{W,QQFieldElem,Z,Y})where{W,Z,Y}
     lf = length(f.coefficients)
     lg = length(g.coefficients)
     k= 1
@@ -433,8 +471,7 @@ function add(f::PolyNomCircW{W},g::PolyNomCircW{W})where{W}
     t = 0
     while k <=lf && j <= lg
         t+=1
-        x = cmp(f.monoms[k],g.monoms[j],f.weight[k],g.weight[j])
- 
+        x = cmp(f.weight[k],g.weight[j])
         if x == 0
             push!(f.monoms,g.monoms[j])
             push!(f.weight,g.weight[j])
@@ -454,9 +491,9 @@ function add(f::PolyNomCircW{W},g::PolyNomCircW{W})where{W}
                 x = ifelse(k-1+B > f.monoms.capacity,k-1+B-f.monoms.capacity,k-1+B)
                 f.coefficients.buffer[x] =  o
             else
+                f.weight.n +=1
                 f.monoms.n +=1
                 t-=1
-                f.weight.n +=1
             end
             k+=1
             j+=1
@@ -469,9 +506,8 @@ function add(f::PolyNomCircW{W},g::PolyNomCircW{W})where{W}
             f.coefficients.buffer[x] =  o
             k+=1
         end
-        
-        f.monoms.n -=1
-        f.weight.n -=1   
+        f.weight.n -=1
+        f.monoms.n -=1   
     end
     while j <=lg
         push!(f.monoms,g.monoms[j])
@@ -501,27 +537,83 @@ function add(f::PolyNomCircW{W},g::PolyNomCircW{W})where{W}
     if A+1 <= f.coefficients.capacity
         f.monoms.first = A+1
         f.coefficients.first = A+1 
-        f.weight.first =A+1
+        f.weight.first = A+1
     else
+        f.weight.first = 1
         f.monoms.first = 1
-        f.weight.first =1
         f.coefficients.first = 1
     end
-    f.weight.n = t
     f.monoms.n  = t
+    f.weight.n = t
     f.coefficients.last = f.monoms.last
     f.coefficients.n = t
     return 
     
 end
 
+
+function widenProblem(LTf2M,LTf2K,LTf2weight,f2,G::Vector{PolyNomCircMatrix{W,QQFieldElem,Z,Y}},r,w2) where {W,Z<:Integer,Y}
+    if w2 == true
+        LTf2M = convert(Vec{W, widen(Z)}, LTf2M)
+        f2 = geobucketpolMatrix([widen_type1(f2.bucket[i]) for i=1:length(f2.bucket)])
+        G  = [widen_type1(G[i]) for i=1:length(G)]
+        r = widen_type1(r)
+    else
+        LTf2weight = convert(Vec{W, widen(Y)}, LTf2weight)
+        f2 = geobucketpolMatrix([widen_type2(f2.bucket[i]) for i=1:length(f2.bucket)])
+        G  = [widen_type2(G[i]) for i=1:length(G)]
+        r = widen_type2(r)
+    end
+    r, w,w2, LTf2M, LTf2K,LTf2weight = CircCirc(LTf2M,LTf2K,LTf2weight,f2,G,r)
+ 
+    if w == true
+        return r
+    else
+        return widenProblem(LTf2M,LTf2K,LTf2weight,f2,G,r,w2)
+    end
+end
+
+function widen_type1(m::PolyNomCircMatrix{W,QQFieldElem, Z,Y}) where {W, Z<:Integer,Y}
+    NewVecType = Vec{W, widen(Z)}
+    neue_deque = CircularDeque{NewVecType}(map(NewVecType, m.monoms.buffer),m.monoms.capacity,m.monoms.n,m.monoms.first,m.monoms.last)
+    
+    return PolyNomCircMatrix(neue_deque, m.coefficients,m.weight)
+end
+
+function widen_type2(m::PolyNomCircMatrix{W,QQFieldElem, Z,Y}) where {W, Z<:Integer,Y}
+    NewVecType = Vec{W, widen(Y)}
+    neue_deque = CircularDeque{NewVecType}(map(NewVecType, m.weight.buffer),m.monoms.capacity,m.monoms.n,m.monoms.first,m.monoms.last)
+    
+    return PolyNomCircMatrix(m.monoms, m.coefficients,neue_deque)
+end
+
+
+
+
+function minType(max_val)
+    for T in (Int8, Int16, Int32, Int64, Int128)
+        if max_val <= typemax(T)
+            return T
+        end
+    end
+    return BigInt
+end
+
 """
 Macht die komplette Division mit Umwandlung davor und danach
 """
-function DIVCircCW(f,G,ord::MonomialOrdering=default_ordering(parent(f)))
-    f2 = PolNewCircW(f,ord=ord)
-    W = length(gens(parent(f)))+1
-    G2 = [PolNewCircW(G[i],ord=ord) for i=1:length(G)]
-    A = DIVCircW(f2,G2)
-    return newPolCircW(A,parent(f),ord=ord)
+function DIVCircCMatrix(f,G,ord::MonomialOrdering=default_ordering(parent(f)))
+    A = [collect(exponents(G[i])) for i=1:length(G)]   
+    B = collect(exponents(f)) 
+    max_val = max(maximum(extrema(Iterators.flatten(A))[2]),maximum(Iterators.flatten(B)))
+    Z = minType(max_val)
+    
+    A= [[Int.(A[i][j]*ord.o.matrix) for j=1:length(A[i])] for i=1:length(A)]
+    B = [Int.(B[j]*ord.o.matrix) for j=1:length(B)] 
+    max_val = max(maximum(extrema(Iterators.flatten(A))[2]),maximum(Iterators.flatten(B)))
+    Y = minType(max_val)
+    f2 = PolNewCircMatrix(f,Z,Y,ord)
+    G2 = [PolNewCircMatrix(G[i],Z,Y,ord) for i=1:length(G)]
+    A = DIVCircMatrix(f2,G2)
+    return newPolCircMatrix(A,parent(f),ord=ord)
 end

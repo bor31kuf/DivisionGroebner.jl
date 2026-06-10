@@ -184,7 +184,7 @@ end
 
 >>B =load("B6.madi")
 
->>DIVCircC4(B,A,ord)
+>>DIVCircC(B,A,ord)
 
 This takes on average 55s and 5.51Gb of storage
 
@@ -198,14 +198,56 @@ This takes on average 55s and 5.51Gb of storage
 
 >>divrem(B,A)
 
-This takes on average 26s and 1.66Gb of storage, so the in build Oscar function is still faster.
+This takes on average 26s and 1.2 Gb of storage, so the in build Oscar function is still faster.
 
-7. CircularSIMDNormalWeight.jl
+7. CircularSIMDNormalWeight.jl/CircularSIMDNormalLex.jl/CircularSIMDNormalMatrix.jl
 
-In the programs before we just put the weight in the monomial vector, which is faster but fails if the weight is
-bigger than Int64. So we store it seperatly in a ZZRingElem
+For Weight and Matrix, they store the weight now seperata.\\
+In Weight every weight ordering and deg ordering is possible, in Lex just Lex and in Matrix every Matrix ordering.
 
->>DIVCircCW(B,A,ord)
+For the weight and monoms we now look first which is the smallest possible type (Int16,Int32...) use it
+and change it if there is a overflow. So every ordering is possible.
+
+>>PolAlg, (x1,x2,x3,x4,x5) = polynomial_ring(QQ,["x1","x2","x3","x4","x5"],internal_ordering=:lex)
+
+>>ord = lex(PolAlg)
+
+>>A = load("A6.madi")
+
+>>B =load("B6.madi")
+
+>>DIVCircCLex(B,A,ord)
+
+This takes on average 35s and 220MiB of storage.
+
+
+>>PolAlg, (x1,x2,x3,x4,x5) = polynomial_ring(QQ,["x1","x2","x3","x4","x5"],internal_ordering=:deglex)
+
+>>ord = lex(PolAlg)
+
+>>A = load("A6.madi")
+
+>>B =load("B6.madi")
+
+>>DIVCircCWeight(B,A,ord)
+
+This takes on average 8.9s and 120MiB of storage
+
+
+
+>>PolAlg, (x1,x2,x3,x4,x5) = polynomial_ring(QQ,["x1","x2","x3","x4","x5"],internal_ordering=:deglex)
+
+>>A = load("A6.madi")
+
+>>B =load("B6.madi")
+
+>>divrem(B,A)
+
+This takes on average 22s and 1Gb of stroage
+
+8. divison.jl
+
+Puts the Division from 7 together, so division(f,G,ord) works for all ord
 
 
 

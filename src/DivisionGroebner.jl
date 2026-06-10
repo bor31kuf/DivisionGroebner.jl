@@ -2,19 +2,19 @@ module DivisionGroebner
 
 using Oscar, SIMD,DataStructures
 include("CircularSIMDNormal.jl")
-include("SIMDArrayNorm.jl")
-include("GroebnerSIMDNorm.jl")
 include("OhneGeobucket.jl")
-include("AlteStruktur.jl")
-include("SIMDCircularNormal.jl")
-include("CircularNormal.jl")
 include("ArrayNorm.jl")
-include("CircularSIMDNormalWeight.jl")
+include("CircularNormal.jl")
+include("SIMDCircularNormal.jl")
+include("CircularSIMDNormal.jl")
 include("CircularSIMDNormalLex.jl")
+include("CircularSIMDNormalWeigth.jl")
+include("CircularSIMDNormalMatrix.jl")
+include("division.jl")
+include("GroebnerSIMDNorm.jl")
 
 
-export GroebnerCirc, DIVCircC12, PolyNomCirc12
-
+export DIVRestFam, DIVArrayOhneGeoC,DIVArrayC0,DIVCircC3,DIVCircC4, DIVCircCLex,division,GroebnerCirc, DIVCircCWeight, DIVCircCMatrix, DIVCircC
 end
 
 

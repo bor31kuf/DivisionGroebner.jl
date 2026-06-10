@@ -1,7 +1,7 @@
 """
 Berechnet das S-Polynom
 """
-function SPoly(f::PolyNomCirc12{W,T},g::PolyNomCirc12{W,T}) where{W,T}
+function SPoly(f::PolyNomCircLex{W,T},g::PolyNomCircLex{W,T}) where{W,T}
     kgv =  max(first(f.monoms),first(g.monoms))
     #kgv = Base.setindex(kgv,sum(kgv*c),1)
     
@@ -12,36 +12,45 @@ function SPoly(f::PolyNomCirc12{W,T},g::PolyNomCirc12{W,T}) where{W,T}
     return x
 end
 
+
+cmp2(a,b) = cmp(first(a.monoms),first(b.monoms)) == 0 ? true : false
+
 """
 Der Buchberger Algorithmus
 """
-function Buchberger3(G::Vector{PolyNomCirc12{W,T}},PolAlg) where{W,T}
+function Buchberger3(G::Vector{PolyNomCircLex{W,QQFieldElem,T}},PolAlg) where{W,T}
     L = length(G)
+    A = Bool[true for i=1:length(G)]
     Queue = pairs(L)
     Bits = trues(Int(L*(L-1)/2))
     k = 1
+    A  = trues(length(G))
+    z =length(G)+1
     while k <= length(Bits)
         if Bits[k]
         
             a = Queue[k][1]
             b = Queue[k][2]
-            Sij = SPoly(G[a],G[b])
-      
-            S = DIVCirc12(Sij,G)
-            
-            if length(S.monoms)!=0
-                ##
-                t1 =gcd([S.coefficients.buffer[i].num for i=1:length(S.coefficients.buffer)])
-                t2 =gcd([S.coefficients.buffer[i].den for i=1:length(S.coefficients.buffer)])
-                t = QQ(t2,t1)
-                S.coefficients.buffer = [mul!(S.coefficients.buffer[i],t) for i=1:length(S.coefficients.buffer)]
-                println(S)
-                if lenght(G) == 20
-                    return
+            if A[a] && A[b]
+                Sij = SPoly(G[a],G[b])
+                println("Hi")
+                S = DIVCircLex(Sij,G)
+                if length(S.monoms)!=0  
+                    println(length(G))
+                    t = mapreduce(identity,gcd,S.coefficients.buffer[1:S.coefficients.n])
+                    S.coefficients.buffer = [divexact!(S.coefficients.buffer[i],t) for i=1:length(S.coefficients.buffer)]
+                    push!(G,S) 
+                    
+                    
+                    for i=(z+1):length(G)-1
+                         
+                        if all(first(S.monoms)<=first(G[i].monoms))    
+                            A[i] == false
+                        end
+                    end
+                    push!(A,true)
+                    Queue, Bits = QUEUE(G,Queue,Bits,k)
                 end
-                push!(G,S)
-                Queue, Bits = QUEUE(G,Queue,Bits,k)
-                
             end
         end
         k+=1
@@ -52,7 +61,8 @@ end
 """
 Zeigt auf welche Polynom paare überhaupt in Betracht kommen. 
 """
-function QUEUE(G::Vector{PolyNomCirc12{W,T}},Pairs,Bits,k) where{W,T}
+function QUEUE(G::Vector{PolyNomCircLex{W,QQFieldElem,T}},Pairs,Bits,k) where{W,T}
+    
     h = G[length(G)]
     c = length(Bits)
     for i=k+1:length(Bits)
@@ -71,7 +81,7 @@ function QUEUE(G::Vector{PolyNomCirc12{W,T}},Pairs,Bits,k) where{W,T}
         end
     end
 
-    for i=1:length(G)-1
+   for i=1:length(G)-1
         push!(Pairs,(i,length(G)))
         w = max(first(G[i].monoms),first(G[length(G)].monoms)) == first(G[i].monoms)+first(G[length(G)].monoms)
         if sum(w) == W
@@ -81,7 +91,7 @@ function QUEUE(G::Vector{PolyNomCirc12{W,T}},Pairs,Bits,k) where{W,T}
         end
     end
 
-    for i=1:length(G)-1
+   for i=1:length(G)-1
         if Bits[c+i]
             for j=i+1:length(G)-1
                 if Bits[c+j]
@@ -118,7 +128,7 @@ end
 
 function GroebnerTCirc(G,PolAlg)
     X=  Buchberger3(G,PolAlg)
-    #println(my_isgb(G))
+    println(my_isgb(G))
     #X = reduce_groebner(X)
     return X
   
@@ -127,11 +137,11 @@ end
 """
 üpberprüft ob etwas ne Gröbnerbasis ist.
 """
-function my_isgb(G::Vector{PolyNomCirc12{W,T}}) where{W,T}
+function my_isgb(G::Vector{PolyNomCircLex{W,QQFieldElem,T}}) where{W,T}
     t = length(G)
     for i = 1:t-1
         for j=1:t
-            if length(DIVCirc12(SPoly(G[i],G[j]),G).monoms) != 0
+            if length(DIVCircLex(SPoly(G[i],G[j]),G).monoms) != 0
                 return false
             end
         end
@@ -149,17 +159,15 @@ function reduce_groebner(G)
     L  = length(G)
     for a=1:L
         w = true
-        while i <= length(G)DIVCirc
-            a = DIVCirc12(G[i],G,i)
+        while i <= length(G)
+            a = DIVCircLex(G[i],G[eachindex(G) .!=i])
             if length(a.monoms)==0
                 deleteat!(G,i)
                 w = false
                 break
-            elseif G[i].coefficients != a.coefficients
+            else
                 w = false
                 G[i]=a
-                i+=1
-            else
                 i+=1
             end
         end
@@ -173,15 +181,15 @@ Komplette funktion zur Berechnung der Gröbnerbasis
 function GroebnerCirc(G;ord=default_ordering(parent(G[1])))
     W =length(gens(parent(G[1])))
     
-    T = Vector{PolyNomCirc12{W,Int32}}()
+    T = Vector{PolyNomCircLex{W,QQFieldElem,Int32}}()
     for i=1:length(G)
-        push!(T,PolnewCirc12(G[i],Int32,ord=ord))
+        push!(T,PolNewCircLex(G[i],Int32,ord=ord))
     end
     T=GroebnerTCirc(T,parent(G[1]))
     
     L =MPolyRingElem[]
     for i=1:length(T)
-        push!(L,newPolCirc12(T[i],parent(G[1]),ord=ord))
+        push!(L,newPolCircLex(T[i],parent(G[1]),ord=ord))
     end
     L = Oscar.IdealGens(L)
     return L
