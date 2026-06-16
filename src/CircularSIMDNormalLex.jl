@@ -1,10 +1,9 @@
-
 """
 Polynoimals are saved in a Circular Deque for fast deleting/inserting at the fron oft the list.
 In the Circular Deque there are SIMD-vetors for fast parallel operationson the vector.
 
-The potential weight of the Polynom is also saved.
-f"""
+No weight is needed for Lex
+"""
 
 mutable struct PolyNomCircLex{W,T,Z}
     monoms::CircularDeque{Vec{W,Z}}
@@ -37,7 +36,7 @@ function addgeobucketLex(B::geobucketpolLex{W,Z},f::PolyNomCircLex{W,QQFieldElem
                 addLex(B.bucket[i+1],B.bucket[i])
                 empty!(B.bucket[i].coefficients)
                 empty!(B.bucket[i].monoms)
-            else
+            else 
                 v = [QQFieldElem(Val(:raw)) for z = 1:2*4^(m+1)]
                 push!(B.bucket,PolyNomCircLex(CircularDeque{Vec{W,Z}}(2*4^(m+1)),CircularDeque{QQFieldElem}(2*4^(m+1))))
                 B.bucket[m+1].coefficients.buffer = v
@@ -107,6 +106,8 @@ function leading_term(B::geobucketpolLex{W,Z},LTf2K) where{W,Z}
     return popfirst!(B.bucket[j].monoms),LTf2K
 end
 
+
+
 function popfirst3!(D)
     v = first(D)
     D.n -= 1
@@ -167,7 +168,9 @@ function newPolCircLex(f,PolAlg;ord=default_ordering(PolAlg))
     return finish(Builder)
 end
 
-
+"""
+Start of the division algorithm, we split it and the loop so we can change the Type easily in Case of an overflow.
+"""
 function DIVCircLex(f::PolyNomCircLex{W,QQFieldElem,Z},G::Vector{PolyNomCircLex{W,QQFieldElem,Z}}) where {W,Z}
     L = length(f.coefficients)
     if L==0
@@ -234,12 +237,6 @@ function CircCirc(LTf2M::Vec{W,Z},LTf2K::QQFieldElem,f2::geobucketpolLex{W,Z},G:
     end
 end
 
-"""
-is ignoring an element of G
-"""
-
-
-
 
 """
 Because we have a CircularDeque which is fixed in size we have sometimes copy it in a bigger CircularDeque
@@ -272,10 +269,10 @@ end
 
 
 """
-Addition zweier monoms mit Zusatzinfos
+Addition of two polynomials with extra info
 
-so ist das eigentliche Addition f+g*(DIV1,DIV2)
-DIV1 ist das Monom, DIV2 der Koeffizient
+The addition is f+g*(DIV1,DIV2)
+DIV1 is the monom, DIV2 the coefficient
 """
 function addLex(f::PolyNomCircLex{W,QQFieldElem,Z},g::PolyNomCircLex{W,QQFieldElem,Z},DIV1,DIV2)where{W,Z}
     lf = length(f.coefficients)
@@ -365,6 +362,9 @@ function addLex(f::PolyNomCircLex{W,QQFieldElem,Z},g::PolyNomCircLex{W,QQFieldEl
 end
 
 
+"""
+Subtraction for Groebner Algorithm
+"""
 function SubLex(f::PolyNomCircLex{W,QQFieldElem,T},g::PolyNomCircLex{W,QQFieldElem,T},DIV1::Vec{W,T},DIV3::Vec{W,T},DIV2::QQFieldElem,DIV4::QQFieldElem)where{W,T}
     lf = length(f.coefficients)
     lg = length(g.coefficients)
@@ -520,7 +520,9 @@ function addLex(f::PolyNomCircLex{W,QQFieldElem,Z},g::PolyNomCircLex{W,QQFieldEl
 end
 
 
-
+"""
+In case of an overflow
+"""
 function widenProblem(LTf2M,LTf2K,f2,G::Vector{PolyNomCircLex{W,QQFieldElem,Z}},r) where {W,Z<:Integer}
     LTf2M = convert(Vec{W, widen(Z)}, LTf2M)
     NewVecType = Vec{W, widen(Z)}
@@ -536,13 +538,12 @@ function widenProblem(LTf2M,LTf2K,f2,G::Vector{PolyNomCircLex{W,QQFieldElem,Z}},
     end
 end
 
-# 1. Hilfsfunktion: Konvertiert ein einzelnes 'MeinTyp'-Objekt in die breitere Version
+"""
+widens the polynomial monomial circular deque
+"""
 function widen_type(m::PolyNomCircLex{W,QQFieldElem, Z}) where {W, Z<:Integer}
     NewVecType = Vec{W, widen(Z)}
-    # Transformiere die Deque wie zuvor
     neue_deque = CircularDeque{NewVecType}(map(NewVecType, m.monoms.buffer),m.monoms.capacity,m.monoms.n,m.monoms.first,m.monoms.last)
-    
-    # Gib die neue Instanz von MeinTyp mit dem neuen Typ-Parameter zurück
     return PolyNomCircLex(neue_deque, m.coefficients)
 end
 
