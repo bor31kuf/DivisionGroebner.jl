@@ -33,7 +33,6 @@ function BuchbergerLexO(G::Vector{PolyNomCircLexO{W,FieldElem,T}},PolAlg) where{
         Pair = QueueElemO.Pair
         sugar = QueueElemO.sugar
         if Test(G,Pair)==true 
-            
             Sij = SPoly(G[Pair[1]],G[Pair[2]])
          
             if typeof(Sij.monoms) != typeof(G[1].monoms)
@@ -42,7 +41,7 @@ function BuchbergerLexO(G::Vector{PolyNomCircLexO{W,FieldElem,T}},PolAlg) where{
                 
             end
  
-            S = DIVCircLex2O(Sij,G)
+            S = DIVCircLexO(Sij,G)
             if length(S.monoms)!=0
                 while typeof(S.monoms) != typeof(G[1].monoms)
                     G  = [widen_type(G[i]) for i=1:length(G)] 

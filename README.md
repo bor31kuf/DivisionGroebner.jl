@@ -283,11 +283,15 @@ This takes on average 32s and 854MiB of storage.
 9. Groebener.jl
 
 For a groebner Basis we use the Buchberger Algorithm with the Gebauer-Möller Kriterien.
-We have a Implementation for Lex, which uses Sugar Degree for the Priority Queue
-We have a Implementation for Weight/deglex, which uses the S-Poly Degree/Weight for the Priority Queue
+We have a Implementation for Lex, which uses Sugar Degree, then bit length of coefficients for the Heap Queue
+We have a Implementation for Weight/deglex, which uses the S-Poly Degree/Weight for the Heap Queue
 Both Version, Lex und Weight/deglex are optimised for QQ.
 
 They all compute a reduced groebner basis
+
+There is also a version in which the division stops after finding the first monomial of the remainder.
+
+Normal version
 
 >>PolAlg, (x1,x2,x3,x4,x5,x6,x7) = polynomial_ring(QQ, ["x$i" for i in 1:7], internal_ordering=:lex) 
 
@@ -295,5 +299,40 @@ They all compute a reduced groebner basis
 
 >> groebner(G,lex(PolAlg))
 
-This takes on average 
+This takes on average 180ms and 18MiB of storage.
+
+Other version 
+
+>>PolAlg, (x1,x2,x3,x4,x5,x6,x7) = polynomial_ring(QQ, ["x$i" for i in 1:7], internal_ordering=:lex) 
+
+>> G= [x1+x2+x3+x4+x5+x6,x1*x2+x2*x3+x3*x4+x4*x5+x5*x6,x1*x2*x3+x2*x3*x4+x3*x4*x5+x4*x5*x6,x1*x2*x3*x4+x2*x3*x4*x5+x3*x4*x5*x6,x1*x2*x3*x4*x5+x2*x3*x4*x5*x6,x1*x2*x3*x4*x5*x6-1] #cyclic6
+
+>> groebner(G,lex(PolAlg))
+
+This takes on average 500ms and 20MiB of storage.
+
+
+For cyclic 7 we get a coefficient explosion. 
+
+>> G = cyclic(7)
+
+>>  groebner_basis(ideal(G),ordering =lex(PolAlg),complete_reduction=true,algorithm=:buchberger)
+
+This takes on avg 200ms and 50MiB of storage.
+
+
+Finite Field 
+
+>> F = GF(65537)
+
+>> PolAlg, (x1,x2,x3,x4,x5,x6,x7) = polynomial_ring(F, ["x$i" for i in 1:7], internal_ordering=:lex) 
+
+>> G = cyclic 6 
+
+>> groebner(G,lex(PolAlg))
+
+This takes on avg 30ms and 5.5MiB
+
+For cyclic 7 the algorithm can't compute it in short time
+
 

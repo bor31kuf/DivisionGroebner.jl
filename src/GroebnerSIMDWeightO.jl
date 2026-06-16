@@ -85,7 +85,7 @@ function QUEUE(G::Vector{PolyNomCircWeightO{W,FieldElem,T,Y}},Queue) where{W,T,Y
             end
             if w2 == true
                 w = max(first(G[i].weight),first(G[length(G)].weight))
-                push!(Queue,QueueElemWeight=( (i,length(G)) , w))
+                push!(Queue,QueueElemWeightO( (i,length(G)) , w))
             end
         end
     end

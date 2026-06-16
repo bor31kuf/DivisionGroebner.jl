@@ -44,7 +44,7 @@ function BuchbergerWeight(G::Vector{PolyNomCircWeight{W,QQFieldElem,T,Y}},PolAlg
             if typeof(Sij.weight) != typeof(G[1].weight)
                 G  = [widen_type2(G[i]) for i=1:length(G)] 
             end
-            S = DIVCircWeight2(Sij,G) #1 oder 2 mmh
+            S = DIVCircWeight(Sij,G) #1 oder 2 mmh
           
             if length(S.monoms)!=0
                 while typeof(S.monoms) != typeof(G[1].monoms)

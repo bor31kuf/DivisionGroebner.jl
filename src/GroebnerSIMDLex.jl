@@ -39,15 +39,17 @@ function BuchbergerLex(G::Vector{PolyNomCircLex{W,QQFieldElem,T}},PolAlg) where{
         if Test(G,Pair)==true 
             
             Sij = SPoly(G[Pair[1]],G[Pair[2]])
-         
+            Sijk = newPolCircLex(Sij,PolAlg)
+            Gk  = [newPolCircLex(G[i],PolAlg) for i=1:length(G)]
             if typeof(Sij.monoms) != typeof(G[1].monoms)
                 G  = [widen_type(G[i]) for i=1:length(G)] 
             end
            
             S = DIVCircLex2(Sij,G) #1 oder 2 mmh
             
+           
+            Sk = newPolCircLex(S,PolAlg)
             if length(S.monoms)!=0
-                println(length(G))
                 while typeof(S.monoms) != typeof(G[1].monoms)
                     G  = [widen_type(G[i]) for i=1:length(G)] 
               
