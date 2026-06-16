@@ -300,8 +300,7 @@ function addLex(f::PolyNomCircLex{W,QQFieldElem,Z},g::PolyNomCircLex{W,QQFieldEl
         if x == 0
            
             push!(f.monoms,g.monoms[j]+DIV1)
-            Nemo.set!(t2[f.monoms.last],g.coefficients[j])
-            mul!(t2[f.monoms.last],DIV2)
+            mul!(t2[f.monoms.last],g.coefficients[j],DIV2)
                
             j+=1
         elseif x==2
@@ -334,8 +333,7 @@ function addLex(f::PolyNomCircLex{W,QQFieldElem,Z},g::PolyNomCircLex{W,QQFieldEl
     end
     while j <=lg
         push!(f.monoms,g.monoms[j]+DIV1)
-        Nemo.set!(t2[f.monoms.last],g.coefficients[j])
-        mul!(t2[f.monoms.last],DIV2)
+        mul!(t2[f.monoms.last],g.coefficients[j],DIV2)
         f.monoms.n -=1
         t+=1
         j+=1
@@ -367,16 +365,34 @@ function addLex(f::PolyNomCircLex{W,QQFieldElem,Z},g::PolyNomCircLex{W,QQFieldEl
 end
 
 
-function Sub1(f::PolyNomCircLex{W,QQFieldElem,T},g::PolyNomCircLex{W,QQFieldElem,T},DIV1::Vec{W,T},DIV3::Vec{W,T},DIV2::QQFieldElem,DIV4::QQFieldElem)where{W,T}
+function SubLex(f::PolyNomCircLex{W,QQFieldElem,T},g::PolyNomCircLex{W,QQFieldElem,T},DIV1::Vec{W,T},DIV3::Vec{W,T},DIV2::QQFieldElem,DIV4::QQFieldElem)where{W,T}
     lf = length(f.coefficients)
     lg = length(g.coefficients)
     k = 1
     j = 1
-    A = CircularDeque{Vec{W,T}}(lf+lg)
+   
+    T2 = T
+    for i=1:g.monoms.n
+        if any(g.monoms[i]+DIV3  < 0)
+            g= widen_type(g)
+            f = widen_type(f)
+            T2 = widen(T)
+        end
+    end
+       
+    for i=1:f.monoms.n
+        if any(f.monoms[i]+DIV1  < 0)
+            g= widen_type(g)
+            f = widen_type(f)
+            T2= widen(T)
+        end
+    end
+
+    A = CircularDeque{Vec{W,T2}}(lf+lg)
     B = CircularDeque{QQFieldElem}(lf+lg)
     v =  [QQFieldElem(Val(:raw)) for z = 1:(lf+lg)]
     B.buffer = v 
-
+     
     while k <=lf && j <= lg
         x = cmp(f.monoms[k]+DIV1,g.monoms[j]+DIV3)
         #potentiell aufpassen
@@ -415,13 +431,14 @@ function Sub1(f::PolyNomCircLex{W,QQFieldElem,T},g::PolyNomCircLex{W,QQFieldElem
     B.n = A.n
     B.last =A.last
     B.first = A.first
-    return PolyNomCircLex{W,QQFieldElem,T}(A,B)
+    return PolyNomCircLex(A,B)
     
 end
 
 """
 Addition zweier Polynome
 """
+
 function addLex(f::PolyNomCircLex{W,QQFieldElem,Z},g::PolyNomCircLex{W,QQFieldElem,Z})where{W,Z}
     lf = length(f.coefficients)
     lg = length(g.coefficients)
@@ -498,9 +515,10 @@ function addLex(f::PolyNomCircLex{W,QQFieldElem,Z},g::PolyNomCircLex{W,QQFieldEl
     f.monoms.n  = t
     f.coefficients.last = f.monoms.last
     f.coefficients.n = t
-    return 
+    return f
     
 end
+
 
 
 function widenProblem(LTf2M,LTf2K,f2,G::Vector{PolyNomCircLex{W,QQFieldElem,Z}},r) where {W,Z<:Integer}
@@ -510,7 +528,7 @@ function widenProblem(LTf2M,LTf2K,f2,G::Vector{PolyNomCircLex{W,QQFieldElem,Z}},
     G  = [widen_type(G[i]) for i=1:length(G)]
     r = widen_type(r)
     r, w, LTf2M, LTf2K = CircCirc(LTf2M,LTf2K,f2,G,r)
- 
+    
     if w == true
         return r
     else
@@ -527,6 +545,102 @@ function widen_type(m::PolyNomCircLex{W,QQFieldElem, Z}) where {W, Z<:Integer}
     # Gib die neue Instanz von MeinTyp mit dem neuen Typ-Parameter zurück
     return PolyNomCircLex(neue_deque, m.coefficients)
 end
+
+
+
+
+function DIVCircLex2(f::PolyNomCircLex{W,QQFieldElem,Z},G::Vector{PolyNomCircLex{W,QQFieldElem,Z}}) where {W,Z}
+    L = length(f.coefficients)
+    if L==0
+        return f
+    end
+    f2 = geobucketpolLex([PolyNomCircLex(CircularDeque{Vec{W,Z}}(8),CircularDeque{QQFieldElem}(8))])
+    f2.bucket[1].coefficients.buffer = [QQFieldElem(Val(:raw)) for z=1:8]
+    
+    f2 =addgeobucketLex(f2,f)[1]
+    LTf2M= first(f.monoms)
+    LTf2K =first(f.coefficients)
+    r = PolyNomCircLex(CircularDeque{Vec{W,Z}}(L),CircularDeque{QQFieldElem}(L))
+    r.coefficients.buffer = [QQFieldElem(Val(:raw)) for z=1:L]
+
+    r,w,LTf2M,LTf2K = CircCirc2(LTf2M,LTf2K,f2,G,r)
+   
+    if w == true
+        return r
+    else
+        return widenProblem2(LTf2M,LTf2K,f2,G,r)
+    end
+end
+
+"""
+The division algrithm
+"""
+function CircCirc2(LTf2M::Vec{W,Z},LTf2K::QQFieldElem,f2::geobucketpolLex{W,Z},G::Vector{PolyNomCircLex{W,QQFieldElem,Z}},r::PolyNomCircLex{W,QQFieldElem,Z}) where {W,Z}
+    D = length(G)
+    DIV2 = QQFieldElem(Val(:raw))
+    while true
+       
+        w = false
+        for i=1:D
+            if all(LTf2M>=first(G[i].monoms))
+                
+                DIV1 =LTf2M-first(G[i].monoms)
+                divexact!(DIV2,LTf2K,first(G[i].coefficients))
+                neg!(DIV2)
+                L2 = length(G[i].coefficients)
+                w = true
+                
+                if L2!=1
+                    f2, w2 =addgeobucketLex(f2,G[i],DIV1,DIV2)
+                    if w2==false
+                        return r, false, LTf2M,LTf2K
+                    end
+                end
+            
+                LTf2M,LTf2K = leading_term(f2,LTf2K)
+                if iszero(LTf2K)
+                    return r, true, LTf2M,LTf2K
+                end
+                break
+        
+            end
+        end
+        if w == false
+            r= pushing(r,LTf2M,LTf2K)
+            break
+        end
+    end
+     
+    for i = 1:length(f2.bucket)
+        if length(f2.bucket[i].coefficients) != 0
+            r=addLex(f2.bucket[i],r)
+        end
+    end
+    return r, true,LTf2M,LTf2K
+    
+end
+
+       
+
+
+function widenProblem2(LTf2M,LTf2K,f2,G::Vector{PolyNomCircLex{W,QQFieldElem,Z}},r) where {W,Z<:Integer}
+    LTf2M = convert(Vec{W, widen(Z)}, LTf2M)
+    NewVecType = Vec{W, widen(Z)}
+    f2 = geobucketpolLex([widen_type(f2.bucket[i]) for i=1:length(f2.bucket)])
+    G  = [widen_type(G[i]) for i=1:length(G)]
+    r = widen_type(r)
+    r, w, LTf2M, LTf2K = CircCirc2(LTf2M,LTf2K,f2,G,r)
+ 
+    if w == true
+        return r
+    else
+        return widenProblem2(LTf2M,LTf2K,f2,G,r)
+    end
+end
+
+
+
+
 
 
 

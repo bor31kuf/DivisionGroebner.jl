@@ -247,7 +247,53 @@ This takes on average 22s and 1Gb of stroage
 
 8. divison.jl
 
-Puts the Division from 7 together, so division(f,G,ord) works for all ord
+Puts the Division from 7 together, so division(f,G,ord) works for all ord and all fields
+
+Also DIVCircCLexO,DIVCircCWeightO,DIVCircCMatrixO from CircularSIMDNormalLexO.jl,... are there if the Field is not QQ
+
+>> Z,y = finite_field(5)
+
+>>PolAlg, (x1,x2,x3,x4,x5) = polynomial_ring(5,["x1","x2","x3","x4","x5"],internal_ordering=:lex)
+
+>>ord = lex(PolAlg)
+
+>>A = load("A6.madi")
+
+>>B =load("B6.madi")
+
+>>division(B,A,ord)
+
+This takes on average 40s and 106MiB of storage.
+
+>> Z,y = finite_field(5)
+
+>>PolAlg, (x1,x2,x3,x4,x5) = polynomial_ring(5,["x1","x2","x3","x4","x5"],internal_ordering=:lex)
+
+>>ord = lex(PolAlg)
+
+>>A = load("A6.madi")
+
+>>B =load("B6.madi")
+
+>>divrem(B,A)
+
+This takes on average 32s and 854MiB of storage.
 
 
+9. Groebener.jl
+
+For a groebner Basis we use the Buchberger Algorithm with the Gebauer-Möller Kriterien.
+We have a Implementation for Lex, which uses Sugar Degree for the Priority Queue
+We have a Implementation for Weight/deglex, which uses the S-Poly Degree/Weight for the Priority Queue
+Both Version, Lex und Weight/deglex are optimised for QQ.
+
+They all compute a reduced groebner basis
+
+>>PolAlg, (x1,x2,x3,x4,x5,x6,x7) = polynomial_ring(QQ, ["x$i" for i in 1:7], internal_ordering=:lex) 
+
+>> G= [x1+x2+x3+x4+x5+x6,x1*x2+x2*x3+x3*x4+x4*x5+x5*x6,x1*x2*x3+x2*x3*x4+x3*x4*x5+x4*x5*x6,x1*x2*x3*x4+x2*x3*x4*x5+x3*x4*x5*x6,x1*x2*x3*x4*x5+x2*x3*x4*x5*x6,x1*x2*x3*x4*x5*x6-1] #cyclic6
+
+>> groebner(G,lex(PolAlg))
+
+This takes on average 
 
