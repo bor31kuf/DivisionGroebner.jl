@@ -6,14 +6,15 @@ end
 
 
 """
-Berechnet das S-Polynom
+Computes the S-PolyNom
 """
+
 function SPoly(f::PolyNomCircLex{W,T},g::PolyNomCircLex{W,T}) where{W,T}
     kgv =  max(first(f.monoms),first(g.monoms))
     
     mf = kgv-first(f.monoms)
     mg = kgv-first(g.monoms)
-    x = SubLex(f,g,mf,mg,1/first(f.coefficients),-1/first(g.coefficients)) 
+    x = addLex(f,g,mf,mg,1/first(f.coefficients),-1/first(g.coefficients)) 
     
     return x
 end
@@ -21,7 +22,7 @@ end
 
 
 """
-Der Buchberger Algorithmus
+The Buchberger Algorithm
 """
 function BuchbergerLex(G::Vector{PolyNomCircLex{W,QQFieldElem,T}},PolAlg) where{W,T}
     L = length(G)
@@ -39,13 +40,11 @@ function BuchbergerLex(G::Vector{PolyNomCircLex{W,QQFieldElem,T}},PolAlg) where{
         if Test(G,Pair)==true 
             
             Sij = SPoly(G[Pair[1]],G[Pair[2]])
-            Sijk = newPolCircLex(Sij,PolAlg)
-            Gk  = [newPolCircLex(G[i],PolAlg) for i=1:length(G)]
             if typeof(Sij.monoms) != typeof(G[1].monoms)
                 G  = [widen_type(G[i]) for i=1:length(G)] 
             end
-           
-            S = DIVCircLex2(Sij,G) #1 oder 2 mmh
+            
+            S = DIVCircLex(Sij,G) #1 or 2 mmh
             
            
             Sk = newPolCircLex(S,PolAlg)
@@ -69,8 +68,7 @@ function BuchbergerLex(G::Vector{PolyNomCircLex{W,QQFieldElem,T}},PolAlg) where{
 end
 
 """
-Zeigt auf welc
-Hihe Polynom paare überhaupt in Betracht kommen. 
+The gebauer-möller criterias which can be checked before inserting 
 """
 function QUEUE(G::Vector{PolyNomCircLex{W,QQFieldElem,T}},Sugar,Queue) where{W,T}
     
@@ -106,7 +104,9 @@ function QUEUE(G::Vector{PolyNomCircLex{W,QQFieldElem,T}},Sugar,Queue) where{W,T
 
 end
 
-
+"""
+Criterais which can be checked after inserting it in the Heap
+"""
 function Test(G::Vector{PolyNomCircLex{W,QQFieldElem,T}},Pair) where{W,T}
    
     
@@ -129,33 +129,10 @@ function Test(G::Vector{PolyNomCircLex{W,QQFieldElem,T}},Pair) where{W,T}
 end
 
 
-function GroebnerTCircLex(G,PolAlg)
-    G= interreduceLex(G)
-    X=  BuchbergerLex(G,PolAlg)
-    X = reduce_groebner(X)
-    X = interreduceLex(X)
-    return X
-  
-end
-
-"""
-üpberprüft ob etwas ne Gröbnerbasis ist.
-"""
-function my_isgb(G::Vector{PolyNomCircLex{W,QQFieldElem,T}}) where{W,T}
-    t = length(G)
-    for i = 1:t-1
-        for j=1:t
-            if length(DIVCircLex(SPoly(G[i],G[j]),G).monoms) != 0
-                return false
-            end
-        end
-    end
-    return true
-end
 
 
 """
-reduziert die Gröbnerbasis
+reduces the groebner basis
 """
 function reduce_groebner(G)
     L  = length(G)
@@ -174,7 +151,9 @@ function reduce_groebner(G)
 end
 
 
-
+"""
+for a complete reduction 
+"""
 function interreduceLex(G::Vector{PolyNomCircLex{W,QQFieldElem,Z}}) where {W,Z}
     L = length(G)
    
@@ -206,8 +185,22 @@ function interreduceLex(G::Vector{PolyNomCircLex{W,QQFieldElem,Z}}) where {W,Z}
     return G
 end
 
+
+
+
+
+function GroebnerTCircLex(G,PolAlg)
+    X= interreduceLex(G)
+    X=  BuchbergerLex(G,PolAlg)
+    X = reduce_groebner(X)
+    X = interreduceLex(X)
+    return X
+  
+end
+
+
 """
-Komplette funktion zur Berechnung der Gröbnerbasis
+complete computation with 
 """
 function GroebnerCircLex(G;ord=default_ordering(parent(G[1])))
     W =length(gens(parent(G[1])))
@@ -226,6 +219,24 @@ function GroebnerCircLex(G;ord=default_ordering(parent(G[1])))
     end
     L = Oscar.IdealGens(L)
     return L
+end
+
+
+
+
+"""
+Checks if something is a groebner basis.
+"""
+function my_isgb(G::Vector{PolyNomCircLex{W,QQFieldElem,T}}) where{W,T}
+    t = length(G)
+    for i = 1:t-1
+        for j=1:t
+            if length(DIVCircLex(SPoly(G[i],G[j]),G).monoms) != 0
+                return false
+            end
+        end
+    end
+    return true
 end
 
 
