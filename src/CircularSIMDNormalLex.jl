@@ -435,7 +435,7 @@ function leading_term(B::geobucketpolLex{W,Z},LTf2C) where{W,Z}
         return  Vec{W,Z}(ntuple(i-> 0,W)),QQ(0)
     end
     
-    Nemo.set!(LTf2C,popfirst3!(B.bucket[j].coefficients))
+    LTf2C = popfirst3!(B.bucket[j].coefficients)
     return popfirst!(B.bucket[j].monoms),LTf2C
 end
 
@@ -528,6 +528,7 @@ function CircCirc(LTf2M::Vec{W,Z},LTf2C::QQFieldElem,f2::geobucketpolLex{W,Z},G:
             r= pushing(r,LTf2M,LTf2C)
             LTf2M,LTf2C = leading_term(f2,LTf2C)
             if iszero(LTf2C)
+                
                 return r, true, LTf2M,LTf2C
             end
         end
