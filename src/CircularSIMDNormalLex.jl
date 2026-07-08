@@ -84,7 +84,7 @@ Addition of two polynomials.
 The function doesn't create a new PolyNomCircLex. It modifys the f polynom, and assummes the f polynom has enough space(the deque) 
 """
 function addLex(f::PolyNomCircLex{W,Z},g::PolyNomCircLex{W,Z}) where {W,Z} 
-    @nospecialize
+    #@nospecialize
     lf = length(f.coefficients)
     lg = length(g.coefficients)
     k= 1
@@ -176,7 +176,7 @@ It doesn't Create a new PolyNomial. It modifys f and assume it has enough space(
 Also it does a check if there is an overflow in the monomials.
 """
 function addLex(f::PolyNomCircLex{W,Z},g::PolyNomCircLex{W,Z},DIV1::Vec{W,Z},DIV2::QQFieldElem) where{W,Z}
-    @nospecialize
+    #@nospecialize
     lf = length(f.coefficients)
     lg = length(g.coefficients)
 
@@ -358,7 +358,7 @@ Algorithms for the geobucket
 The addition in a geobucket.
 """
 function addgeobucketLex(B::geobucketpolLex{W,Z},f::PolyNomCircLex{W,Z},DIV1::Vec{W,Z},DIV2 =QQFieldElem(1)) where{W,Z}
-    @nospecialize
+    #@nospecialize
     log = cld(64-leading_zeros(length(f.coefficients)),2)
     i=max(1,log)
     m = length(B.bucket)
@@ -405,7 +405,7 @@ end
 The extraction of the leading term in average log(size of B)
 """
 function leading_term(B::geobucketpolLex{W,Z},LTf2C) where{W,Z}
-    @nospecialize
+    #@nospecialize
     m= length(B.bucket)
     j= 0
     #W = typeof(B).parameters[1]
@@ -508,7 +508,7 @@ end
 The division algrithm
 """
 function CircCirc(LTf2M::Vec{W,Z},LTf2C::QQFieldElem,f2::geobucketpolLex{W,Z},G::Vector{PolyNomCircLex{W,Z}},r::PolyNomCircLex{W,Z}) where{W,Z}
-    @nospecialize
+    #@nospecialize
     D = length(G)
     DIV2 = QQ(1)
 
@@ -555,7 +555,7 @@ end
 Because we have a CircularDeque which is fixed in size we have sometimes copy it in a bigger CircularDeque
 """
 function pushing(r::PolyNomCircLex{W,Z},LTf2M::Vec{W,Z},LTf2C::QQFieldElem) where{W,Z}
-    @nospecialize
+    #@nospecialize
     if capacity(r.coefficients) > length(r.coefficients)
         push!(r.monoms,LTf2M)        
         Nemo.set!(r.coefficients.buffer[r.monoms.n],LTf2C)
@@ -589,7 +589,7 @@ end
 In case of an overflow
 """
 function widenProblem(LTf2M::Vec{W,Z},LTf2C,f2,G::Vector{PolyNomCircLex{W,Z}},r::PolyNomCircLex{W,Z}) where{W,Z}
-    @nospecialize
+    #@nospecialize
     #W = typeof(LTf2M).parameters[1]
     #Z = typeof(LTf2M).parameters[2]
     LTf2M = convert(Vec{W, widen(Z)}, LTf2M)
@@ -610,7 +610,7 @@ end
 widens the polynomial monomial circular deque
 """
 function widen_type(m::PolyNomCircLex{W,Z}) where{W,Z}
-    @nospecialize
+    #@nospecialize
     #W = typeof(m).parameters[1]
     #Z = typeof(m).parameters[2]
     NewVecType = Vec{W, widen(Z)}
