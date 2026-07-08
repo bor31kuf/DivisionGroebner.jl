@@ -24,14 +24,14 @@ end
 """
 The Buchberger Algorithm
 """
-function BuchbergerLex(G::Vector{PolyNomCircLex{W,QQFieldElem,T}},PolAlg) where{W,T}
+function BuchbergerLex(G::Vector{PolyNomCircLex{W,T}},PolAlg) where{W,T}
     L = length(G)
     Queue = BinaryHeap(Base.By(x->(x.sugar,x.nbits)),QueueElemLex[])
     Sugar = [sum(first(G[i].monoms)) for i=1:length(G)]
     for i=2:length(G)
         Queue = QUEUE(G[1:i],Sugar,Queue)
     end
-    f = QQFieldElem(Val(:raw))
+   
     while isempty(Queue) == false
         QueueElem = pop!(Queue)
         Pair = QueueElem.Pair
@@ -46,9 +46,11 @@ function BuchbergerLex(G::Vector{PolyNomCircLex{W,QQFieldElem,T}},PolAlg) where{
             
             S = DIVCircLex(Sij,G) #1 or 2 mmh
             
-           
+            println("hi")
             Sk = newPolCircLex(S,PolAlg)
             if length(S.monoms)!=0
+                println(length(Queue))
+                println(length(G))
                 while typeof(S.monoms) != typeof(G[1].monoms)
                     G  = [widen_type(G[i]) for i=1:length(G)] 
               
@@ -70,7 +72,7 @@ end
 """
 The gebauer-möller criterias which can be checked before inserting 
 """
-function QUEUE(G::Vector{PolyNomCircLex{W,QQFieldElem,T}},Sugar,Queue) where{W,T}
+function QUEUE(G::Vector{PolyNomCircLex{W,T}},Sugar,Queue) where{W,T}
     
    
 
@@ -107,7 +109,7 @@ end
 """
 Criterais which can be checked after inserting it in the Heap
 """
-function Test(G::Vector{PolyNomCircLex{W,QQFieldElem,T}},Pair) where{W,T}
+function Test(G::Vector{PolyNomCircLex{W,T}},Pair) where{W,T}
    
     
     for i=1:length(G)
@@ -154,7 +156,7 @@ end
 """
 for a complete reduction 
 """
-function interreduceLex(G::Vector{PolyNomCircLex{W,QQFieldElem,Z}}) where {W,Z}
+function interreduceLex(G::Vector{PolyNomCircLex{W,Z}}) where {W,Z}
     L = length(G)
    
     for a=1:L
@@ -207,7 +209,7 @@ function GroebnerCircLex(G;ord=default_ordering(parent(G[1])))
     A = [collect(exponents(G[i])) for i=1:length(G)]   
     max_val = maximum(extrema(Iterators.flatten(A))[2])
     Z = minType(max_val)
-    T = Vector{PolyNomCircLex{W,QQFieldElem,Z}}()
+    T = Vector{PolyNomCircLex{W,Z}}()
     for i=1:length(G)
         push!(T,PolNewCircLex(G[i],Z,ord=ord))
     end
@@ -227,7 +229,7 @@ end
 """
 Checks if something is a groebner basis.
 """
-function my_isgb(G::Vector{PolyNomCircLex{W,QQFieldElem,T}}) where{W,T}
+function my_isgb(G::Vector{PolyNomCircLex{W,T}}) where{W,T}
     t = length(G)
     for i = 1:t-1
         for j=1:t

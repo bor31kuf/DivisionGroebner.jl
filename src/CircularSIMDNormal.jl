@@ -36,7 +36,7 @@ function addgeobucket(B::geobucketpol1{W},f::PolyNomCirc,DIV1 = Vec{W,Int64}(ntu
                 empty!(B.bucket[i].coefficients)
                 empty!(B.bucket[i].monoms)
             else
-                v = [QQFieldElem(Val(:raw)) for z = 1:2*4^(m+1)]
+                v = [QQ(1) for z = 1:2*4^(m+1)]  
                 push!(B.bucket,PolyNomCirc(CircularDeque{Vec{W,Int64}}(2*4^(m+1)),CircularDeque{FieldElem}(2*4^(m+1))))
                 B.bucket[m+1].coefficients.buffer = v
                 add(B.bucket[m+1],B.bucket[m])
@@ -48,7 +48,7 @@ function addgeobucket(B::geobucketpol1{W},f::PolyNomCirc,DIV1 = Vec{W,Int64}(ntu
         return B
     end
     for t=m:max(m,i)-1
-        v = [QQFieldElem(Val(:raw)) for z = 1:2*4^(t+1)]
+        v = [QQ(1) for z = 1:2*4^(m+1)]  
         push!(B.bucket, PolyNomCirc(CircularDeque{Vec{W,Int64}}(2*4^(t+1)),CircularDeque{FieldElem}(2*4^(t+1))))
         B.bucket[t+1].coefficients.buffer = v
     end
@@ -245,14 +245,14 @@ function DIVCirc(f::PolyNomCirc{W,FieldElem},G::Vector{PolyNomCirc{W,FieldElem}}
         return f
     end
     f2 = geobucketpol1([PolyNomCirc(CircularDeque{Vec{W,Int64}}(8),CircularDeque{FieldElem}(8))])
-    f2.bucket[1].coefficients.buffer = [QQFieldElem(Val(:raw)) for z=1:8]
+    f2.bucket[1].coefficients.buffer = [QQ(1) for z = 1:8]  
     f2 =addgeobucket(f2,f)
     LTf2M= first(f.monoms)
     LTf2K =first(f.coefficients)
     r = PolyNomCirc(CircularDeque{Vec{W,Int64}}(L),CircularDeque{FieldElem}(L))
-    r.coefficients.buffer = [QQFieldElem(Val(:raw)) for z=1:L]
+    r.coefficients.buffer  = [QQ(1) for z = 1:L]  
     D = length(G)
-    DIV2 = QQFieldElem(Val(:raw))
+    DIV2 = QQ(1)
     while true
        
         w = false

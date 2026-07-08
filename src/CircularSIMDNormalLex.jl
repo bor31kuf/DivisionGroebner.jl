@@ -5,7 +5,7 @@ Structures
 """
 
 
-
+#nospecials
 
 """
 Polynoimals are saved in a Circular Deque for fast deleting/inserting at the fron oft the list.
@@ -14,9 +14,9 @@ In the Circular Deque there are SIMD-vetors for fast parallel operationson the v
 No weight is needed for Lex
 """
 
-mutable struct PolyNomCircLex{W,T,Z}
+mutable struct PolyNomCircLex{W,Z}
     monoms::CircularDeque{Vec{W,Z}}
-    coefficients::CircularDeque{T}
+    coefficients::CircularDeque{QQFieldElem}
 end
 
 
@@ -25,7 +25,7 @@ We are using a geobucket structure, for fast addition of polynomials.
 
 """
 struct geobucketpolLex{W,Z}
-    bucket::Vector{PolyNomCircLex{W,QQFieldElem,Z}}
+    bucket::Vector{PolyNomCircLex{W,Z}}
 end
 
 
@@ -40,12 +40,12 @@ Conversion of PolyNomial Types
 """
 A conversion of the Oscar polynomial type to this new one.
 """
-function PolNewCircLex(f,Z::Type;ord::MonomialOrdering=default_ordering(parent(f)))
+function PolNewCircLex(f::QQMPolyRingElem,Z::Type;ord::MonomialOrdering=default_ordering(parent(f)))
     A = collect(coefficients(f,ordering=ord))
     B = collect(exponents(f,ordering=ord))
     L = length(B)
     W= length(gens(parent(f)))
-    D = PolyNomCircLex(CircularDeque{Vec{W,Z}}(L),CircularDeque{QQFieldElem}(L)) 
+    D = PolyNomCircLex(CircularDeque{Vec{W,Z}}(L),CircularDeque{QQFieldElem}(L))# ::PolyNomCircLex{5, Z}
     for i=1:length(A)
         push!(D.monoms,convert(Vec{W, Z}, vload(Vec{W, Int64}, B[i], 1)))
         push!(D.coefficients,A[i])
@@ -56,7 +56,7 @@ end
 """
 function for conversion of this new polynomial type to the oscar one
 """
-function newPolCircLex(f,PolAlg;ord=default_ordering(PolAlg))
+function newPolCircLex(f::PolyNomCircLex{W,Z},PolAlg;ord=default_ordering(PolAlg)) where {W,Z}
     a=zero(PolAlg)
     k = length(f.monoms)
     Builder = MPolyBuildCtx(PolAlg)
@@ -83,7 +83,8 @@ Addition of two polynomials.
 
 The function doesn't create a new PolyNomCircLex. It modifys the f polynom, and assummes the f polynom has enough space(the deque) 
 """
-function addLex(f::PolyNomCircLex{W,QQFieldElem,Z},g::PolyNomCircLex{W,QQFieldElem,Z})where{W,Z}
+function addLex(f::PolyNomCircLex{W,Z},g::PolyNomCircLex{W,Z}) where {W,Z} 
+    @nospecialize
     lf = length(f.coefficients)
     lg = length(g.coefficients)
     k= 1
@@ -174,7 +175,8 @@ It doesn't Create a new PolyNomial. It modifys f and assume it has enough space(
 
 Also it does a check if there is an overflow in the monomials.
 """
-function addLex(f::PolyNomCircLex{W,QQFieldElem,Z},g::PolyNomCircLex{W,QQFieldElem,Z},DIV1,DIV2)where{W,Z}
+function addLex(f::PolyNomCircLex{W,Z},g::PolyNomCircLex{W,Z},DIV1::Vec{W,Z},DIV2::QQFieldElem) where{W,Z}
+    @nospecialize
     lf = length(f.coefficients)
     lg = length(g.coefficients)
 
@@ -274,18 +276,19 @@ f*(DIV1,DIV2)+g*(DIV3,DIV4)
 
 It also checks for Overflow in the monomials, if so it just widens f and g.
 """
-function addLex(f::PolyNomCircLex{W,QQFieldElem,T},g::PolyNomCircLex{W,QQFieldElem,T},DIV1::Vec{W,T},DIV3::Vec{W,T},DIV2::QQFieldElem,DIV4::QQFieldElem)where{W,T}
+function addLex(f::PolyNomCircLex{W,Z},g::PolyNomCircLex{W,Z},DIV1::Vec{W,Z},DIV3::Vec{W,Z},DIV2::QQFieldElem,DIV4::QQFieldElem) where {W,Z}
     lf = length(f.coefficients)
     lg = length(g.coefficients)
     k = 1
     j = 1
    
-    T2 = T
+    T1 = typeof(DIV1).parameters[1]
+    T2 = typeof(DIV1).parameters[2]
     for i=1:g.monoms.n
         if any(g.monoms[i]+DIV3  < 0)
             g= widen_type(g)
             f = widen_type(f)
-            T2 = widen(T)
+            T2 = widen(T2)
         end
     end
        
@@ -293,13 +296,13 @@ function addLex(f::PolyNomCircLex{W,QQFieldElem,T},g::PolyNomCircLex{W,QQFieldEl
         if any(f.monoms[i]+DIV1  < 0)
             g= widen_type(g)
             f = widen_type(f)
-            T2= widen(T)
+            T2= widen(T2)
         end
     end
-
-    A = CircularDeque{Vec{W,T2}}(lf+lg)
+   
+    A = CircularDeque{Vec{T1,T2}}(lf+lg)
     B = CircularDeque{QQFieldElem}(lf+lg)
-    v =  [QQFieldElem(Val(:raw)) for z = 1:(lf+lg)]
+    v =  [QQ(1) for z = 1:(lf+lg)]
     B.buffer = v 
      
     while k <=lf && j <= lg
@@ -354,10 +357,13 @@ Algorithms for the geobucket
 """
 The addition in a geobucket.
 """
-function addgeobucketLex(B::geobucketpolLex{W,Z},f::PolyNomCircLex{W,QQFieldElem,Z},DIV1 = Vec{W,Z}(ntuple(i-> 0,W)),DIV2 =QQFieldElem(1)) where{W,Z}
+function addgeobucketLex(B::geobucketpolLex{W,Z},f::PolyNomCircLex{W,Z},DIV1::Vec{W,Z},DIV2 =QQFieldElem(1)) where{W,Z}
+    @nospecialize
     log = cld(64-leading_zeros(length(f.coefficients)),2)
     i=max(1,log)
     m = length(B.bucket)
+    #W = typeof(DIV1).parameters[1]
+    #Z = typeof(DIV1).parameters[2]
     if i <= m
         if addLex(B.bucket[i],f,DIV1,DIV2) == false
             return B,false
@@ -368,7 +374,8 @@ function addgeobucketLex(B::geobucketpolLex{W,Z},f::PolyNomCircLex{W,QQFieldElem
                 empty!(B.bucket[i].coefficients)
                 empty!(B.bucket[i].monoms)
             else 
-                v = [QQFieldElem(Val(:raw)) for z = 1:2*4^(m+1)]
+                #v = [QQFieldElem(Val(:raw)) for z = 1:2*4^(m+1)]
+                v = [QQ(1) for z = 1:2*4^(m+1)]                
                 push!(B.bucket,PolyNomCircLex(CircularDeque{Vec{W,Z}}(2*4^(m+1)),CircularDeque{QQFieldElem}(2*4^(m+1))))
                 B.bucket[m+1].coefficients.buffer = v
                 addLex(B.bucket[m+1],B.bucket[m])
@@ -382,7 +389,8 @@ function addgeobucketLex(B::geobucketpolLex{W,Z},f::PolyNomCircLex{W,QQFieldElem
 
     #Allocates another bucket(?)
     for t=m:max(m,i)-1
-        v = [QQFieldElem(Val(:raw)) for z = 1:2*4^(t+1)]
+        v = [QQ(1) for z=1:2*4^(t+1)]        
+        #v = [QQFieldElem(Val(:raw)) for z = 1:2*4^(t+1)]
         push!(B.bucket, PolyNomCircLex(CircularDeque{Vec{W,Z}}(2*4^(t+1)),CircularDeque{QQFieldElem}(2*4^(t+1))))
         B.bucket[t+1].coefficients.buffer = v
     end
@@ -397,8 +405,11 @@ end
 The extraction of the leading term in average log(size of B)
 """
 function leading_term(B::geobucketpolLex{W,Z},LTf2C) where{W,Z}
+    @nospecialize
     m= length(B.bucket)
     j= 0
+    #W = typeof(B).parameters[1]
+    #Z = typeof(B).parameters[2]    
     while true
         j= 0
         w = true
@@ -441,7 +452,7 @@ end
 
 
 
-function popfirst3!(D)
+function popfirst3!(D::CircularDeque{QQFieldElem})
     v = first(D)
     D.n -= 1
     tmp = D.first + 1
@@ -449,7 +460,7 @@ function popfirst3!(D)
     v
 end
 
-function popfirst2!(D)
+function popfirst2!(D::CircularDeque{QQFieldElem})
     D.n -= 1
     tmp = D.first + 1
     D.first = ifelse(tmp > D.capacity, 1, tmp)
@@ -468,19 +479,21 @@ The main division algorithm
 """
 Start of the division algorithm, we split it and the loop so we can change the Type easily in Case of an overflow.
 """
-function DIVCircLex(f::PolyNomCircLex{W,QQFieldElem,Z},G::Vector{PolyNomCircLex{W,QQFieldElem,Z}}) where {W,Z}
+function DIVCircLex(@nospecialize(f::PolyNomCircLex),@nospecialize(G::Vector{<:PolyNomCircLex}))
     L = length(f.coefficients)
     if L==0
         return f
     end
+    W = typeof(f).parameters[1]
+    Z = typeof(f).parameters[2]
     f2 = geobucketpolLex([PolyNomCircLex(CircularDeque{Vec{W,Z}}(8),CircularDeque{QQFieldElem}(8))])
-    f2.bucket[1].coefficients.buffer = [QQFieldElem(Val(:raw)) for z=1:8]
-    
-    f2 =addgeobucketLex(f2,f)[1]
+    f2.bucket[1].coefficients.buffer = [QQ(1) for z=1:8]
+    DIV1 = zero(Vec{W,Z})
+    f2 =addgeobucketLex(f2,f,DIV1,QQ(1))[1]
     LTf2M= first(f.monoms)
     LTf2C =first(f.coefficients)
     r = PolyNomCircLex(CircularDeque{Vec{W,Z}}(L),CircularDeque{QQFieldElem}(L))
-    r.coefficients.buffer = [QQFieldElem(Val(:raw)) for z=1:L]
+    r.coefficients.buffer = [QQ(1) for z=1:L]
 
     r,w,LTf2M,LTf2C = CircCirc(LTf2M,LTf2C,f2,G,r)
    
@@ -494,9 +507,11 @@ end
 """
 The division algrithm
 """
-function CircCirc(LTf2M::Vec{W,Z},LTf2C::QQFieldElem,f2::geobucketpolLex{W,Z},G::Vector{PolyNomCircLex{W,QQFieldElem,Z}},r::PolyNomCircLex{W,QQFieldElem,Z}) where {W,Z}
+function CircCirc(LTf2M::Vec{W,Z},LTf2C::QQFieldElem,f2::geobucketpolLex{W,Z},G::Vector{PolyNomCircLex{W,Z}},r::PolyNomCircLex{W,Z}) where{W,Z}
+    @nospecialize
     D = length(G)
-    DIV2 = QQFieldElem(Val(:raw))
+    DIV2 = QQ(1)
+
     while true
        
         w = false
@@ -539,7 +554,8 @@ end
 """
 Because we have a CircularDeque which is fixed in size we have sometimes copy it in a bigger CircularDeque
 """
-function pushing(r::PolyNomCircLex{W,QQFieldElem,Z},LTf2M,LTf2C) where{W,Z}
+function pushing(r::PolyNomCircLex{W,Z},LTf2M::Vec{W,Z},LTf2C::QQFieldElem) where{W,Z}
+    @nospecialize
     if capacity(r.coefficients) > length(r.coefficients)
         push!(r.monoms,LTf2M)        
         Nemo.set!(r.coefficients.buffer[r.monoms.n],LTf2C)
@@ -550,7 +566,7 @@ function pushing(r::PolyNomCircLex{W,QQFieldElem,Z},LTf2M,LTf2C) where{W,Z}
     else
         r21 = CircularDeque{Vec{W,Z}}(2*capacity(r.monoms))
         r22 = CircularDeque{QQFieldElem}(2*capacity(r.monoms))
-        r22.buffer = [QQFieldElem(Val(:raw)) for z=1:2*capacity(r.monoms)]
+        r22.buffer = [QQ(1) for z=1:2*capacity(r.monoms)]
         for i=1:length(r.coefficients)
             push!(r21,r.monoms[i])
             push!(r22,r.coefficients[i]) 
@@ -572,7 +588,10 @@ end
 """
 In case of an overflow
 """
-function widenProblem(LTf2M,LTf2C,f2,G::Vector{PolyNomCircLex{W,QQFieldElem,Z}},r) where {W,Z<:Integer}
+function widenProblem(LTf2M::Vec{W,Z},LTf2C,f2,G::Vector{PolyNomCircLex{W,Z}},r::PolyNomCircLex{W,Z}) where{W,Z}
+    @nospecialize
+    #W = typeof(LTf2M).parameters[1]
+    #Z = typeof(LTf2M).parameters[2]
     LTf2M = convert(Vec{W, widen(Z)}, LTf2M)
     NewVecType = Vec{W, widen(Z)}
     f2 = geobucketpolLex([widen_type(f2.bucket[i]) for i=1:length(f2.bucket)])
@@ -590,7 +609,10 @@ end
 """
 widens the polynomial monomial circular deque
 """
-function widen_type(m::PolyNomCircLex{W,QQFieldElem, Z}) where {W, Z<:Integer}
+function widen_type(m::PolyNomCircLex{W,Z}) where{W,Z}
+    @nospecialize
+    #W = typeof(m).parameters[1]
+    #Z = typeof(m).parameters[2]
     NewVecType = Vec{W, widen(Z)}
     neue_deque = CircularDeque{NewVecType}(map(NewVecType, m.monoms.buffer),m.monoms.capacity,m.monoms.n,m.monoms.first,m.monoms.last)
     return PolyNomCircLex(neue_deque, m.coefficients)
@@ -652,19 +674,19 @@ The same but we stop after findng the first monomial of the remainder.
 
 """
 
-function DIVCircLex2(f::PolyNomCircLex{W,QQFieldElem,Z},G::Vector{PolyNomCircLex{W,QQFieldElem,Z}}) where {W,Z}
+function DIVCircLex2(f::PolyNomCircLex{W,Z},G::Vector{PolyNomCircLex{W,Z}}) where {W,Z}
     L = length(f.coefficients)
     if L==0
         return f
     end
     f2 = geobucketpolLex([PolyNomCircLex(CircularDeque{Vec{W,Z}}(8),CircularDeque{QQFieldElem}(8))])
-    f2.bucket[1].coefficients.buffer = [QQFieldElem(Val(:raw)) for z=1:8]
+    f2.bucket[1].coefficients.buffer = [QQ(1) for z=1:8]
     
     f2 =addgeobucketLex(f2,f)[1]
     LTf2M= first(f.monoms)
     LTf2C =first(f.coefficients)
     r = PolyNomCircLex(CircularDeque{Vec{W,Z}}(L),CircularDeque{QQFieldElem}(L))
-    r.coefficients.buffer = [QQFieldElem(Val(:raw)) for z=1:L]
+    r.coefficients.buffer = [QQ(1) for z=1:L]
 
     r,w,LTf2M,LTf2C = CircCirc2(LTf2M,LTf2C,f2,G,r)
    
@@ -678,9 +700,9 @@ end
 """
 The division algrithm
 """
-function CircCirc2(LTf2M::Vec{W,Z},LTf2C::QQFieldElem,f2::geobucketpolLex{W,Z},G::Vector{PolyNomCircLex{W,QQFieldElem,Z}},r::PolyNomCircLex{W,QQFieldElem,Z}) where {W,Z}
+function CircCirc2(LTf2M::Vec{W,Z},LTf2C::QQFieldElem,f2::geobucketpolLex{W,Z},G::Vector{PolyNomCircLex{W,Z}},r::PolyNomCircLex{W,Z}) where {W,Z}
     D = length(G)
-    DIV2 = QQFieldElem(Val(:raw))
+    DIV2 = QQ(1)
     while true
        
         w = false
@@ -726,7 +748,7 @@ end
        
 
 
-function widenProblem2(LTf2M,LTf2C,f2,G::Vector{PolyNomCircLex{W,QQFieldElem,Z}},r) where {W,Z<:Integer}
+function widenProblem2(LTf2M,LTf2C,f2,G::Vector{PolyNomCircLex{W,Z}},r) where {W,Z<:Integer}
     LTf2M = convert(Vec{W, widen(Z)}, LTf2M)
     NewVecType = Vec{W, widen(Z)}
     f2 = geobucketpolLex([widen_type(f2.bucket[i]) for i=1:length(f2.bucket)])
